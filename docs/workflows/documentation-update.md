@@ -1,0 +1,295 @@
+---
+status: Draft
+observation_file: null
+observation_count: 0
+last_updated: 2026-02-07
+---
+
+# Workflow: Documentation Update
+
+**Status**: Draft (N=0)
+**Last Updated**: 2026-02-07
+
+## Purpose
+
+Systematic process for updating NEON-SOUL documentation when architecture, plans, or implementation changes.
+
+**Principles Applied**: Single Source of Truth, Documentation as Code
+
+---
+
+## When to Use This Workflow
+
+**Trigger when:**
+- Architecture changes (standalone CLI → OpenClaw skill)
+- Adding/removing/renaming pipeline phases or stages
+- Changing shared module structure
+- Updating dependencies or technology stack
+- Code review findings require plan updates
+
+**Skip when:**
+- Internal implementation details (no public interface change)
+- Test-only changes
+- Research notes that don't affect plans
+
+---
+
+## Documentation Hierarchy
+
+Updates flow from authoritative sources down:
+
+```
+docs/proposals/soul-bootstrap-pipeline-proposal.md  # Authoritative design (decisions)
+        ↓
+docs/plans/2026-02-07-soul-bootstrap-master.md      # Implementation overview
+        ↓
+docs/ARCHITECTURE.md                                 # How system works (created Phase 0)
+        ↓
+docs/plans/2026-02-07-phase{0,1,2,3}-*.md           # Phase-specific details
+        ↓
+README.md                                            # Project overview
+        ↓
+docs/issues/                                         # Active issues
+docs/reviews/                                        # Code review outputs
+```
+
+**Document purposes**:
+- **Proposal**: Historical record of design decisions ("what we decided to build and why")
+- **Master Plan**: Implementation coordination ("how phases relate")
+- **ARCHITECTURE.md**: System reference ("how the code actually works") - created during Phase 0
+- **Phase Plans**: Implementation details ("what to build in each phase")
+- **README**: Newcomer entry point ("quick start")
+
+**Rule**: The proposal is the authoritative design source. ARCHITECTURE.md implements the proposal and evolves with the code. README summarizes for newcomers.
+
+---
+
+## Steps
+
+### Step 1: Identify Scope of Change
+
+Classify the change:
+
+| Type | Files Affected |
+|------|----------------|
+| **Architecture** | Proposal, Master Plan, ARCHITECTURE.md, Phase Plans, README |
+| **Phase structure** | Master Plan, ARCHITECTURE.md, affected Phase Plans |
+| **Stage details** | Specific Phase Plan only |
+| **Module structure** | ARCHITECTURE.md, Phase 0, affected Phase Plans |
+| **Dependency** | Proposal (tech stack), Phase 0, README |
+| **Issue resolution** | Issues file, affected Plans |
+
+### Step 2: Update Proposal (if architectural)
+
+The proposal is the design authority. Update:
+
+- [ ] Technology Stack table
+- [ ] Dependencies JSON
+- [ ] Directory structure diagram
+- [ ] OpenClaw Skill Commands section
+- [ ] Data model interfaces (if types changed)
+
+### Step 3: Update Master Plan
+
+High-level coordination document:
+
+- [ ] Architecture diagram
+- [ ] Shared Module Architecture table
+- [ ] Technology Stack table
+- [ ] Phase dependencies (if phases added/removed)
+- [ ] Key Architectural Decisions section
+
+### Step 4: Update Phase Plans
+
+Update affected phase plans:
+
+- [ ] Files to create section
+- [ ] Tasks and code snippets
+- [ ] Acceptance criteria
+- [ ] Quality Gate metrics
+- [ ] Deliverables list
+- [ ] Shared modules references ("> **Reuses from Phase X**")
+
+### Step 5: Update README.md
+
+Project overview for newcomers:
+
+- [ ] Technology section
+- [ ] Project Structure diagram
+- [ ] Key Documents table
+- [ ] Current Status checklist
+- [ ] Example commands
+
+### Step 6: Update Issues (if applicable)
+
+If changes resolve or affect open issues:
+
+- [ ] Mark resolved findings as N/A or fixed
+- [ ] Update fix groupings
+- [ ] Add resolution notes with commit references
+- [ ] Update issue status in registry
+
+### Step 7: Verify Consistency
+
+Run verification checks:
+
+```bash
+# Check for stale command references
+grep -r "npx neon-soul" docs/ README.md
+
+# Check for stale SDK references
+grep -r "@anthropic-ai/sdk" docs/ README.md
+
+# Check for mismatched phase counts
+grep -r "Phase [0-9]" docs/plans/
+
+# Verify all plans cross-reference correctly
+grep -r "Master Plan\|Depends on" docs/plans/
+```
+
+---
+
+## Checklist Files
+
+| File | What to Check |
+|------|---------------|
+| `docs/proposals/soul-bootstrap-pipeline-proposal.md` | Tech stack, deps, commands, interfaces |
+| `docs/plans/2026-02-07-soul-bootstrap-master.md` | Architecture, shared modules, phases |
+| `docs/ARCHITECTURE.md` | Module diagram, data flow, config options |
+| `docs/plans/2026-02-07-phase0-project-setup.md` | Scaffolding, dependencies, types |
+| `docs/plans/2026-02-07-phase1-template-compression.md` | Extraction, matching, metrics |
+| `docs/plans/2026-02-07-phase2-openclaw-environment.md` | Docker, data landscape, interview |
+| `docs/plans/2026-02-07-phase3-memory-ingestion.md` | Pipeline, synthesis, audit trail |
+| `README.md` | Technology, structure, status |
+| `docs/issues/*.md` | Active issues, status updates |
+| `scripts/README.md` | Script table, usage, regression testing |
+
+> **Note**: `docs/ARCHITECTURE.md` is created during Phase 0 Stage 0.5. Before Phase 0 completion, skip this file in the checklist.
+
+---
+
+## Script Documentation Standards
+
+All scripts in `scripts/` must be self-documenting with a header block:
+
+```typescript
+/**
+ * Script Name
+ *
+ * Brief description of what the script does.
+ *
+ * Usage:
+ *   npx tsx scripts/script-name.ts [options]
+ *
+ * Input:
+ *   - Description of input files/directories
+ *
+ * Output:
+ *   - Description of output files/directories
+ *
+ * Notes:
+ *   - Any important caveats or configuration
+ */
+```
+
+When adding a new script:
+1. Add self-documenting header to the script file
+2. Update `scripts/README.md` with the new script
+3. Update phase plan if script is part of a phase deliverable
+
+---
+
+## Common Mistakes
+
+### 1. Updating Plans Without Proposal
+
+**Wrong**: Changing architecture in plans but not proposal
+**Right**: Proposal is authoritative; update it first, then plans
+
+### 2. Forgetting Cross-References
+
+**Wrong**: Updating one plan without checking others that reference it
+**Right**: Grep for references: `grep -r "Phase 0\|phase0" docs/plans/`
+
+### 3. Stale Command Syntax
+
+**Wrong**: Mixing `npx neon-soul` and `/neon-soul` commands
+**Right**: All commands use `/neon-soul` skill invocation
+
+### 4. Orphaned Issues
+
+**Wrong**: Resolving findings in code but not updating issue file
+**Right**: Mark findings as resolved with commit reference
+
+### 5. Missing Shared Module Updates
+
+**Wrong**: Adding shared module in Phase 0 but not updating Phase 1-3 references
+**Right**: Update all "Reuses from Phase X" sections
+
+---
+
+## Verification Commands
+
+```bash
+# All commands should use skill invocation
+grep -r "npx neon-soul" docs/ README.md
+# Expected: No results
+
+# No stale SDK references
+grep -r "@anthropic-ai/sdk" docs/ README.md
+# Expected: No results (or only in historical context)
+
+# Phase plan cross-references valid
+for f in docs/plans/*phase*.md; do
+  echo "=== $f ==="
+  grep -E "Master Plan|Depends on|Phase [0-9]" "$f"
+done
+
+# All issues have status
+grep -E "^status:" docs/issues/*.md
+```
+
+---
+
+## Examples
+
+### Example: CLI → OpenClaw Skill Architecture Change
+
+**Files updated** (in order):
+1. `docs/proposals/soul-bootstrap-pipeline-proposal.md` - Tech stack, deps, commands
+2. `docs/plans/2026-02-07-soul-bootstrap-master.md` - Added skill architecture section
+3. `docs/plans/2026-02-07-phase0-project-setup.md` - Removed SDK dep, added arch decision
+4. `docs/plans/2026-02-07-phase{1,2,3}-*.md` - Updated command invocations
+5. `README.md` - Updated technology section, examples
+6. `docs/issues/internal-soul-bootstrap-code-review-findings.md` - C-1 marked N/A
+
+**Verification**:
+```bash
+grep -r "npx neon-soul" docs/ README.md  # Should return nothing
+grep -r "@anthropic-ai/sdk" docs/        # Should return nothing
+```
+
+---
+
+## Anti-Patterns
+
+| Anti-Pattern | Why It's Wrong | Do Instead |
+|--------------|----------------|------------|
+| Updating plans without proposal | Drift from design authority | Proposal first, then plans |
+| Partial command updates | Mixed syntax confuses users | Global replace with verification |
+| Ignoring cross-references | Plans become inconsistent | Grep for references before finishing |
+| Leaving issues stale | Unclear what's resolved | Update issues with each fix |
+
+---
+
+## Related Documentation
+
+- **[Soul Bootstrap Proposal](../proposals/soul-bootstrap-pipeline-proposal.md)** - Authoritative design (decisions)
+- **[Master Plan](../plans/2026-02-07-soul-bootstrap-master.md)** - Implementation overview
+- **[ARCHITECTURE.md](../ARCHITECTURE.md)** - System reference (created Phase 0)
+- **[Issues Registry](../issues/README.md)** - Active issues
+- **[Parent Documentation Update](../../../../docs/workflows/documentation-update.md)** - Multiverse workflow
+
+---
+
+*Workflow created from architecture change (CLI → OpenClaw skill). Adapted from writer project workflow.*
