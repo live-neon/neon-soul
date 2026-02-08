@@ -23,3 +23,7 @@ env/
 # Experiments (keep final results)
 experiments/*/checkpoints/
 experiments/*/logs/
+
+# Test-generated artifacts
+tests/e2e/fixtures/**/SOUL*.md
+tests/e2e/fixtures/**/.neon-soul/
