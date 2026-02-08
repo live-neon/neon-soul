@@ -1,0 +1,45 @@
+# NEON-SOUL Signal Extraction Service
+#
+# Dockerfile for running NEON-SOUL signal extraction in a container.
+# Used with docker-compose.yml profile: extraction
+#
+# Build:
+#   docker build -t neon-soul -f docker/Dockerfile.neon-soul .
+#
+# Usage:
+#   docker-compose --profile extraction up
+#
+
+FROM node:20-slim
+
+LABEL maintainer="NEON-SOUL Project"
+LABEL description="AI identity persistence through semantic compression"
+
+# Set working directory
+WORKDIR /app
+
+# Install dependencies first (for layer caching)
+COPY package*.json ./
+RUN npm ci --only=production
+
+# Copy source code
+COPY src/ ./src/
+COPY tsconfig.json ./
+
+# Build TypeScript
+# CR-3 FIX: Removed silent failure - build errors must fail the container build
+RUN npm run build
+
+# Create output directory
+RUN mkdir -p /app/output
+
+# Environment
+ENV NODE_ENV=production
+ENV OPENCLAW_MEMORY_PATH=/memory
+
+# MN-2 FIX: Health check verifies the app can import successfully
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD node -e "require('./dist/commands/extract-signals.js')" || exit 1
+
+# Default command (can be overridden)
+CMD ["node", "dist/commands/extract-signals.js"]

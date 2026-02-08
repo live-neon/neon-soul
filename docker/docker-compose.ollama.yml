@@ -1,0 +1,45 @@
+# Ollama Local LLM for NEON-SOUL E2E Testing
+#
+# Usage:
+#   docker compose -f docker/docker-compose.ollama.yml up -d
+#   docker exec neon-soul-ollama ollama pull llama3
+#
+# Then run real LLM tests:
+#   USE_REAL_LLM=true npm test tests/e2e/real-llm.test.ts
+#
+# API Endpoints:
+#   - http://localhost:11434/api/tags       (list models)
+#   - http://localhost:11434/v1/chat/completions  (OpenAI-compatible)
+#
+# Models (pull after starting):
+#   - llama3    : 8B params, high quality, recommended default
+#   - mistral   : 7B params, fast, good quality
+#   - phi3      : 3.8B params, fast, resource-limited environments
+#
+# Resource Notes:
+#   - llama3 requires ~8GB RAM
+#   - mistral requires ~7GB RAM
+#   - phi3 requires ~4GB RAM
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: neon-soul-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    environment:
+      # Enable GPU if available (optional)
+      - OLLAMA_HOST=0.0.0.0
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  ollama-data:
+    name: neon-soul-ollama-data

@@ -1,0 +1,110 @@
+# OpenClaw Local Development Environment
+#
+# Usage:
+#   docker-compose up -d
+#
+# Prerequisites:
+#   - Docker and Docker Compose
+#   - ~/.openclaw/workspace directory (created by OpenClaw first run)
+#   - Copy .env.example to .env and configure API keys
+#
+# Volume Mounts:
+#   - Memory directory mounted read-only for NEON-SOUL signal extraction
+#   - Workspace mounted for OpenClaw operation
+#
+# Security Notes:
+#   - Memory directory uses :ro (read-only) mount
+#   - PII handling: Memory files may contain sensitive information
+#   - Sanitize data before external processing
+#
+# MN-8: Production API Key Security
+#   For production deployments, avoid passing API keys via environment variables
+#   as they're visible in container inspection. Consider:
+#   - Docker Swarm secrets: https://docs.docker.com/engine/swarm/secrets/
+#   - Kubernetes secrets: https://kubernetes.io/docs/concepts/configuration/secret/
+#   - AWS Secrets Manager, Vault, etc. for cloud deployments
+#   Current setup (env vars) is appropriate for local development only.
+
+# MN-5 FIX: Removed deprecated version line (modern Docker Compose doesn't need it)
+
+services:
+  openclaw:
+    # IM-8 FIX: Pin to specific version instead of :latest for deterministic builds
+    image: openclaw/openclaw:1.0.0
+    container_name: openclaw-dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"    # Web UI
+      - "8080:8080"    # API
+    environment:
+      - OPENCLAW_WORKSPACE=/workspace
+      - OPENCLAW_LOG_LEVEL=${OPENCLAW_LOG_LEVEL:-info}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    volumes:
+      # OpenClaw workspace (read-write for OpenClaw operation)
+      - ${OPENCLAW_WORKSPACE:-~/.openclaw/workspace}:/workspace
+      # Memory directory (read-only for NEON-SOUL extraction)
+      - ${OPENCLAW_WORKSPACE:-~/.openclaw/workspace}/memory:/workspace/memory:ro
+    networks:
+      - neon-soul-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # NEON-SOUL signal extraction service (optional, for development)
+  neon-soul:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.neon-soul
+    container_name: neon-soul-dev
+    profiles:
+      - extraction
+    environment:
+      - OPENCLAW_MEMORY_PATH=/memory
+      - NODE_ENV=development
+    volumes:
+      # Memory directory (read-only for signal extraction)
+      - ${OPENCLAW_WORKSPACE:-~/.openclaw/workspace}/memory:/memory:ro
+      # Output directory for extracted signals
+      - ../output:/app/output
+    networks:
+      - neon-soul-net
+    depends_on:
+      openclaw:
+        condition: service_healthy
+
+  # Ollama local LLM service (optional, for real LLM testing)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: neon-soul-ollama
+    restart: unless-stopped
+    profiles:
+      - ollama
+      - full
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    networks:
+      - neon-soul-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  neon-soul-net:
+    driver: bridge
+
+# Named volumes for persistence
+volumes:
+  openclaw-data:
+  ollama-data:
