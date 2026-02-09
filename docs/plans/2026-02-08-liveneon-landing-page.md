@@ -388,7 +388,10 @@ OpenClaw users and AI enthusiasts self-select into the depth layer.
 ## Related
 
 **Review Status**:
-- **Issue**: `docs/issues/code-review-2026-02-08-liveneon-landing-page.md` (addressed)
+- **Twin Review Issue**: `docs/issues/twin-review-2026-02-08-liveneon-landing-page.md` (open)
+- **Code Review Issue**: `docs/issues/code-review-2026-02-08-liveneon-landing-page.md` (resolved)
+- **Twin Technical**: `docs/reviews/2026-02-08-liveneon-landing-page-twin-technical.md`
+- **Twin Creative**: `docs/reviews/2026-02-08-liveneon-landing-page-twin-creative.md`
 - **Codex Review**: `docs/reviews/2026-02-08-liveneon-landing-page-codex.md`
 - **Gemini Review**: `docs/reviews/2026-02-08-liveneon-landing-page-gemini.md`
 
