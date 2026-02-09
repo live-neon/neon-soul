@@ -267,7 +267,8 @@ if [ "$SKIP_DOCKER" != true ]; then
 fi
 
 echo "Next steps:"
-echo "  1. Configure API key in docker/.env"
-echo "  2. Create some memory files in ~/.openclaw/workspace/memory/"
-echo "  3. Run: npx tsx scripts/test-pipeline.ts"
+echo "  1. Start Ollama: docker compose -f docker/docker-compose.ollama.yml up -d"
+echo "  2. Pull model: docker exec neon-soul-ollama ollama pull llama3"
+echo "  3. Create memory files in ~/.openclaw/workspace/memory/"
+echo "  4. Run: npx tsx src/commands/synthesize.ts --dry-run"
 echo ""
