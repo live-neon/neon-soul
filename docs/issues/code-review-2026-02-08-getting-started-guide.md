@@ -8,6 +8,7 @@ reviewers:
   - gemini-25pro-validator
 affects:
   - docs/guides/getting-started-guide.md
+  - src/commands/synthesize.ts
   - scripts/setup-openclaw.sh
   - docker/docker-compose.yml
 ---
@@ -24,11 +25,115 @@ affects:
 
 ## Summary
 
-External code review identified **5 critical**, **5 important**, and **6 minor** issues. The guide documents an aspirational workflow that doesn't match current implementation, which would cause users to fail at multiple points.
+External code review identified **5 critical**, **5 important**, and **6 minor** issues. The guide documents an aspirational workflow that doesn't match current implementation.
 
-**Core Problem**: Documentation describes polished features (skill commands, dry-run, auto-commit) that aren't fully implemented or require undocumented context to access.
+**Resolution Strategy**: Build up to the aspirational documentation rather than downgrade documentation to match current limitations. The infrastructure is 95% complete - only CLI auto-detection needs implementation.
 
 **N-Count Verification**: "Aspirational documentation vs implementation" pattern verified as **N=2** (cross-referenced with `template-coverage-plan-vs-reality-audit.md` and `htmx-targeting-hell-vs-documented-methodology-gap.md`).
+
+---
+
+## Feature Gap: CLI Auto-Detection
+
+### Current State
+
+The `synthesize` command exits immediately in CLI mode (lines 137-144 of `src/commands/synthesize.ts`):
+
+```typescript
+async function main(): Promise<void> {
+  console.error('\n❌ CLI mode is not yet supported.');
+  console.error('The synthesize command requires an LLM provider from OpenClaw skill context.');
+  process.exit(1);  // <-- Only blocker
+}
+```
+
+### What Already Works
+
+| Component | Status |
+|-----------|--------|
+| Pipeline (`runPipeline`) | ✅ Fully functional |
+| CLI argument parsing (--dry-run, --force, etc.) | ✅ Complete |
+| Skill commands (`/neon-soul *`) | ✅ Work in OpenClaw |
+| `OllamaLLMProvider` | ✅ Has `isAvailable()` check |
+| All other LLM infrastructure | ✅ Ready |
+
+### Implementation: CLI LLM Auto-Detection
+
+**Effort**: 1-2 hours
+
+**Changes to `src/commands/synthesize.ts`**:
+
+```typescript
+import { OllamaLLMProvider } from '../lib/llm-providers/ollama-provider.js';
+
+async function main(): Promise<void> {
+  const options = parseArgs(process.argv.slice(2));
+
+  // Try Ollama first (local, no API key needed)
+  if (await OllamaLLMProvider.isAvailable()) {
+    console.log('Using Ollama LLM provider (local)');
+    const llm = new OllamaLLMProvider();
+    await runSynthesisWithLLM(options, llm);
+    return;
+  }
+
+  // Future: Check for API providers
+  // if (process.env.ANTHROPIC_API_KEY) { ... }
+  // if (process.env.OPENAI_API_KEY) { ... }
+
+  // Helpful error with setup instructions
+  console.error('\n❌ No LLM provider available.\n');
+  console.error('Options:');
+  console.error('  1. Start Ollama:');
+  console.error('     docker compose -f docker/docker-compose.ollama.yml up -d');
+  console.error('     docker exec neon-soul-ollama ollama pull llama3\n');
+  console.error('  2. Run as OpenClaw skill: /neon-soul synthesize\n');
+  process.exit(1);
+}
+
+async function runSynthesisWithLLM(options: CommandOptions, llm: LLMProvider): Promise<void> {
+  const pipelineOptions: PipelineOptions = {
+    memoryPath: options.memoryPath,
+    outputPath: options.outputPath,
+    llm,
+    format: options.format,
+    force: options.force,
+    dryRun: options.dryRun,
+  };
+
+  const result = await runPipeline(pipelineOptions);
+  console.log(formatPipelineResult(result));
+}
+
+// Entry point
+main().catch((error) => {
+  console.error('Synthesis failed:', error.message);
+  process.exit(1);
+});
+```
+
+### What This Enables
+
+After implementation, the guide's commands work as documented:
+
+```bash
+# These will work standalone (no OpenClaw required)
+npx tsx src/commands/synthesize.ts --dry-run
+npx tsx src/commands/synthesize.ts --force
+npx tsx src/commands/synthesize.ts --format native
+
+# With proper npm bin entry, even simpler:
+npx neon-soul synthesize --dry-run
+```
+
+### Future Enhancements (Optional)
+
+| Enhancement | Effort | Priority |
+|-------------|--------|----------|
+| Add `bin` entry to package.json | 5 min | Medium |
+| Add AnthropicLLMProvider | 1 hour | Low |
+| Add OpenAILLMProvider | 1 hour | Low |
+| Config file for LLM settings | 30 min | Low |
 
 ---
 
@@ -69,12 +174,11 @@ git clone https://github.com/geeks-accelerator/neon-soul.git
 
 **Impact**: Users will try running in terminal and fail.
 
-**Fix**: Add explicit section explaining:
-1. Setup commands (terminal) vs operation commands (chat interface)
-2. Where to run skill commands (OpenClaw Control UI, Slack, Discord)
-3. How to load the NEON-SOUL skill in OpenClaw
+**Fix**: With CLI auto-detection implemented, update guide to show both options:
+1. **Terminal** (standalone): `npx tsx src/commands/synthesize.ts --dry-run`
+2. **Chat interface** (OpenClaw): `/neon-soul synthesize --dry-run`
 
-**Effort**: 30 minutes
+**Effort**: 30 minutes (after CLI auto-detection)
 
 ---
 
@@ -91,12 +195,15 @@ git clone https://github.com/geeks-accelerator/neon-soul.git
 
 **Impact**: First synthesis will either fail or write to wrong location.
 
-**Fix Options**:
-1. Document actual skill-based synthesis flow
-2. Create user-facing CLI wrapper (longer term)
-3. Clearly mark as "Developer Testing" section
+**Fix**: With CLI auto-detection, the correct entry point becomes:
+```bash
+npx tsx src/commands/synthesize.ts --dry-run   # Preview
+npx tsx src/commands/synthesize.ts --force     # Run synthesis
+```
 
-**Effort**: 1 hour (option 1)
+This uses the proper command with all flags working, writing to `~/.openclaw/workspace/`.
+
+**Effort**: 15 minutes (doc update after CLI auto-detection)
 
 ---
 
@@ -250,30 +357,38 @@ Actual `docker/docker-compose.yml` provides:
 
 ## Recommended Actions
 
-### Phase 1: Critical Fixes (Immediate)
+### Phase 0: Feature Implementation (Enables Aspirational Docs)
 
-1. [ ] CR-1: Update repo URL with availability note
-2. [ ] CR-4: Fix setup script path
-3. [ ] CR-5: Align ports/services with actual docker-compose
+1. [ ] **CLI Auto-Detection**: Implement LLM provider auto-detection in `src/commands/synthesize.ts`
+   - Check Ollama availability first (local, no API key)
+   - Fallback to helpful error with setup instructions
+   - **Effort**: 1-2 hours
+   - **Unlocks**: CR-2, CR-3, and standalone CLI mode
 
-### Phase 2: Structural Fixes (Before Publishing)
+### Phase 1: Critical Doc Fixes (After Phase 0)
 
-4. [ ] CR-2: Add "Terminal vs Chat Interface" section
-5. [ ] CR-3: Document actual synthesis workflow or create CLI wrapper
-6. [ ] IM-1: Fix manual setup instructions
+2. [ ] CR-1: Update repo URL to `github.com/geeks-accelerator/neon-soul` with availability note
+3. [ ] CR-3: Update entry point from `scripts/test-pipeline.ts` to `src/commands/synthesize.ts`
+4. [ ] CR-4: Fix setup script path (`./scripts/setup-openclaw.sh`)
+5. [ ] CR-5: Align ports/services with actual docker-compose
+
+### Phase 2: Guide Restructure (Before Publishing)
+
+6. [ ] CR-2: Document both terminal and chat interface options
+7. [ ] IM-1: Fix manual setup instructions
+8. [ ] IM-5: Move Ollama setup earlier (required for CLI mode)
 
 ### Phase 3: Polish (Before Publishing)
 
-7. [ ] IM-2, IM-3: Fix hardcoded paths/dates
-8. [ ] IM-4: Update time estimate
-9. [ ] IM-5: Reorder Ollama section
-10. [ ] MN-1 through MN-6: Minor improvements
+9. [ ] IM-2, IM-3: Fix hardcoded paths/dates
+10. [ ] IM-4: Update time estimate to "30-45 minutes (first run)"
+11. [ ] MN-1 through MN-6: Minor improvements
 
 ### Phase 4: Consider (Optional)
 
-11. [ ] Split guide: "OpenClaw Setup" + "NEON-SOUL Integration"
-12. [ ] Add "Existing OpenClaw Users" quick path
-13. [ ] Consider standalone mode documentation
+12. [ ] Add `bin` entry to package.json for `npx neon-soul` command
+13. [ ] Split guide: "OpenClaw Setup" + "NEON-SOUL Integration"
+14. [ ] Add "Existing OpenClaw Users" quick path
 
 ---
 
@@ -305,13 +420,16 @@ After addressing items, verify:
 
 | Priority | Items | Total Effort |
 |----------|-------|--------------|
-| Immediate | CR-1, CR-4, CR-5, IM-4 | ~45 min |
-| High | CR-2, CR-3, IM-1 | ~2 hours |
-| Medium | IM-2, IM-3, IM-5 | ~25 min |
-| Low | MN-1 to MN-6 | ~1 hour |
+| **Phase 0** | CLI Auto-Detection feature | ~1-2 hours |
+| Phase 1 | CR-1, CR-3, CR-4, CR-5 | ~30 min |
+| Phase 2 | CR-2, IM-1, IM-5 | ~45 min |
+| Phase 3 | IM-2, IM-3, IM-4, MN-* | ~1 hour |
 
-**Total Estimated Effort**: ~4 hours
+**Total Estimated Effort**: ~4-5 hours
+
+**Key Insight**: Phase 0 (1-2 hours of code) unlocks the aspirational workflow. Without it, we'd spend similar time documenting workarounds and explanations.
 
 ---
 
 *Issue created 2026-02-08 from N=2 cross-architecture code review.*
+*Updated 2026-02-08 to include CLI auto-detection feature (Option A).*
