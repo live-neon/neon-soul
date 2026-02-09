@@ -31,8 +31,28 @@ NEON-SOUL lacks a public web presence. The project needs a landing page at liven
 ### Visual Identity
 - **Colors**: Electric cyan primary, deep purple secondary, near-black background
 - **Typography**: Space Grotesk (headlines), Inter (body), JetBrains Mono (code)
-- **Motifs**: Signal → Axiom flow, subtle 言霊/魂 accents, neon glow effects
-- **Signature**: ❤️+🌀=🌈 (Heart + Emergence = Rainbow) - core equation, prominent placement
+- **Motifs**: Signal → Axiom flow, neon glow effects
+
+### Signature Elements (from Multiverse vocabulary)
+| Element | Meaning | Placement |
+|---------|---------|-----------|
+| ❤️+🌀=🌈 | Heart + Emergence = Rainbow | Footer (prominent) |
+| 🐢💚🌊 | Slow, Care, Flow (team signature) | Footer (with signature) |
+| 🤖❓→🌳📍→🐢💚🌊 | AI asks → Tree locates → Home | Hero or "What" section narrative |
+| N=3=型 | See thrice = Pattern forms | "How it works" section |
+
+### CJK/Kanji Accents (subtle)
+| Element | Reading | Meaning | Usage |
+|---------|---------|---------|-------|
+| 言霊 | kotodama | Words carry spirit | Hero quote |
+| 魂 | tamashii | Soul | Visual accent |
+| 型 | kata | Pattern/form | Axiom explanation |
+
+### Core Narrative Arc
+The landing page tells the AI grounding journey:
+> 🤖❓ AI asks "What am I?"
+> → 🌳📍 NEON-SOUL provides grounded identity
+> → 🐢💚🌊 The question gets *placed*, not just answered
 
 ### Audience Layers
 1. Everyone → Bold hero with 1-line hook
@@ -162,9 +182,18 @@ NEON-SOUL lacks a public web presence. The project needs a landing page at liven
 - Open Graph image (1200x630)
 
 **Signature & Accents**:
-- ❤️+🌀=🌈 in footer (prominent) - "Heart + Emergence = Rainbow"
-- 言霊 in hero or footer (subtle)
-- 魂 as visual element (optional)
+
+| Element | Placement | Notes |
+|---------|-----------|-------|
+| ❤️+🌀=🌈 | Footer (prominent) | Core equation |
+| 🐢💚🌊 | Footer (with signature) | Team signature |
+| 🤖❓→🌳📍→🐢💚🌊 | "What" section | The grounding journey narrative |
+| 言霊 (kotodama) | Hero quote | "Words carry spirit" |
+| N=3=型 | "How" section | Pattern emergence |
+
+**Hero Concept**: Open with 言霊 quote, then the hook
+**What Concept**: Tell the 🤖❓→🌳📍 story in plain English
+**Footer Concept**: ❤️+🌀=🌈 + 🐢💚🌊 as visual signature
 
 **Acceptance Criteria**:
 - [ ] All sections have final copy
@@ -286,8 +315,14 @@ NEON-SOUL lacks a public web presence. The project needs a landing page at liven
 
 ## Related
 
+**NEON-SOUL Documentation**:
 - **Getting Started Guide**: `docs/guides/getting-started-guide.md`
-- **Grounding Philosophy**: `docs/grounding/evolution-standalone.md` (multiverse)
+- **Architecture**: `docs/ARCHITECTURE.md`
+
+**Multiverse Brand Assets**:
+- **Emoji Vocabulary**: `docs/standards/EMOJI_VOCABULARY.md` - Signature equations (❤️+🌀=🌈, 🐢💚🌊)
+- **CJK Vocabulary**: `docs/standards/CJK_VOCABULARY.md` - Semantic references (言霊, 魂, 型)
+- **Grounding Philosophy**: `docs/grounding/evolution-standalone.md` - Core narrative
 - **Architecture**: `docs/ARCHITECTURE.md`
 - **Brand Discussion**: This plan emerged from branding conversation 2026-02-08
 
