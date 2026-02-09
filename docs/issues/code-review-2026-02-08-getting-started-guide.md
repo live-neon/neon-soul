@@ -1,7 +1,8 @@
 ---
-status: Open
+status: Resolved
 priority: High
 created: 2026-02-08
+resolved: 2026-02-08
 source: Code Review (N=2)
 reviewers:
   - codex-gpt51-examiner
@@ -357,34 +358,33 @@ Actual `docker/docker-compose.yml` provides:
 
 ## Recommended Actions
 
-### Phase 0: Feature Implementation (Enables Aspirational Docs)
+### Phase 0: Feature Implementation (Enables Aspirational Docs) ✅
 
-1. [ ] **CLI Auto-Detection**: Implement LLM provider auto-detection in `src/commands/synthesize.ts`
+1. [x] **CLI Auto-Detection**: Implement LLM provider auto-detection in `src/commands/synthesize.ts`
    - Check Ollama availability first (local, no API key)
    - Fallback to helpful error with setup instructions
-   - **Effort**: 1-2 hours
    - **Unlocks**: CR-2, CR-3, and standalone CLI mode
 
-### Phase 1: Critical Doc Fixes (After Phase 0)
+### Phase 1: Critical Doc Fixes (After Phase 0) ✅
 
-2. [ ] CR-1: Update repo URL to `github.com/geeks-accelerator/neon-soul` with availability note
-3. [ ] CR-3: Update entry point from `scripts/test-pipeline.ts` to `src/commands/synthesize.ts`
-4. [ ] CR-4: Fix setup script path (`./scripts/setup-openclaw.sh`)
-5. [ ] CR-5: Align ports/services with actual docker-compose
+2. [x] CR-1: Update repo URL to `github.com/geeks-accelerator/neon-soul` with availability note
+3. [x] CR-3: Update entry point from `scripts/test-pipeline.ts` to `src/commands/synthesize.ts`
+4. [x] CR-4: Fix setup script path (`./scripts/setup-openclaw.sh`)
+5. [x] CR-5: Align ports/services with actual docker-compose
 
-### Phase 2: Guide Restructure (Before Publishing)
+### Phase 2: Guide Restructure (Before Publishing) ✅
 
-6. [ ] CR-2: Document both terminal and chat interface options
-7. [ ] IM-1: Fix manual setup instructions
-8. [ ] IM-5: Move Ollama setup earlier (required for CLI mode)
+6. [x] CR-2: Document both terminal and chat interface options
+7. [x] IM-1: Fix manual setup instructions
+8. [x] IM-5: Move Ollama setup earlier (required for CLI mode)
 
-### Phase 3: Polish (Before Publishing)
+### Phase 3: Polish (Before Publishing) ✅
 
-9. [ ] IM-2, IM-3: Fix hardcoded paths/dates
-10. [ ] IM-4: Update time estimate to "30-45 minutes (first run)"
-11. [ ] MN-1 through MN-6: Minor improvements
+9. [x] IM-2, IM-3: Fix hardcoded paths/dates
+10. [x] IM-4: Update time estimate to "30-45 minutes (first run)"
+11. [x] MN-1 through MN-6: Minor improvements
 
-### Phase 4: Consider (Optional)
+### Phase 4: Consider (Optional) - Deferred
 
 12. [ ] Add `bin` entry to package.json for `npx neon-soul` command
 13. [ ] Split guide: "OpenClaw Setup" + "NEON-SOUL Integration"
@@ -396,11 +396,11 @@ Actual `docker/docker-compose.yml` provides:
 
 After addressing items, verify:
 
-- [ ] All bash commands in guide can be copy-pasted and execute successfully
-- [ ] All paths/files referenced exist in repository
-- [ ] Skill commands clearly marked as chat interface commands
-- [ ] Time estimate reflects actual first-run experience
-- [ ] Links validated (internal and external)
+- [x] All bash commands in guide can be copy-pasted and execute successfully
+- [x] All paths/files referenced exist in repository
+- [x] Skill commands clearly marked as chat interface commands
+- [x] Time estimate reflects actual first-run experience
+- [x] Links validated (internal and external)
 
 ---
 
@@ -411,6 +411,7 @@ After addressing items, verify:
 - **Related Observation (N=2)**: `docs/observations/template-coverage-plan-vs-reality-audit.md` (plan vs reality drift)
 - **Related Observation (N=2)**: `docs/observations/htmx-targeting-hell-vs-documented-methodology-gap.md` (methodology gap)
 - **Twin Review Issue**: `docs/issues/twin-review-2026-02-08-consolidated.md` (documentation drift N=2)
+- **Follow-up Twin Review**: `docs/issues/twin-review-2026-02-08-getting-started-guide.md` (UX clarity N=2)
 - **Docker README**: `docker/README.md`
 - **Setup Script**: `scripts/setup-openclaw.sh`
 
@@ -433,3 +434,18 @@ After addressing items, verify:
 
 *Issue created 2026-02-08 from N=2 cross-architecture code review.*
 *Updated 2026-02-08 to include CLI auto-detection feature (Option A).*
+*Resolved 2026-02-08: All phases 0-3 complete. Phase 4 items deferred as optional enhancements.*
+
+---
+
+## Resolution Summary
+
+**Approach**: Built features to match aspirational documentation rather than downgrading docs.
+
+**Key Changes**:
+1. **CLI Auto-Detection** (`src/commands/synthesize.ts`): Ollama detection enables standalone CLI mode
+2. **Guide Restructure**: Dual paths (upstream OpenClaw vs dev stack), clear terminal vs chat interface distinction
+3. **Accurate Commands**: All entry points, paths, ports, and service names now match implementation
+4. **Minor Polish**: Time estimates, setup script references, channel docs links, docker status format
+
+**Validated**: Build passes, 175 tests pass, CLI synthesis works with Ollama.

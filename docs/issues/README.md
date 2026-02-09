@@ -10,7 +10,8 @@ See parent: `/docs/issues/README.md`
 
 | Issue | Status | Priority |
 |-------|--------|----------|
-| [Getting Started Guide Code Review](code-review-2026-02-08-getting-started-guide.md) | open | **high** |
+| [Getting Started Guide Twin Review](twin-review-2026-02-08-getting-started-guide.md) | ✅ resolved | medium |
+| [Getting Started Guide Code Review](code-review-2026-02-08-getting-started-guide.md) | ✅ resolved | **high** |
 | [Twin Review Consolidated](twin-review-2026-02-08-consolidated.md) | ✅ resolved | medium |
 | [E2E Testing Code Review Findings](e2e-testing-code-review-findings.md) | ✅ resolved | medium |
 | [Phase 4 OpenClaw Integration Code Review](phase4-openclaw-integration-code-review-findings.md) | ✅ resolved | **high** |
