@@ -315,6 +315,11 @@ The landing page tells the AI grounding journey:
 
 ## Related
 
+**Review Status**:
+- **Issue**: `docs/issues/code-review-2026-02-08-liveneon-landing-page.md` (open)
+- **Codex Review**: `docs/reviews/2026-02-08-liveneon-landing-page-codex.md`
+- **Gemini Review**: `docs/reviews/2026-02-08-liveneon-landing-page-gemini.md`
+
 **NEON-SOUL Documentation**:
 - **Getting Started Guide**: `docs/guides/getting-started-guide.md`
 - **Architecture**: `docs/ARCHITECTURE.md`
