@@ -8,6 +8,7 @@ import type { Axiom, AxiomTier, CanonicalForm } from '../types/axiom.js';
 import type { LLMProvider } from '../types/llm.js';
 import { LLMRequiredError } from '../types/llm.js';
 import { createAxiomProvenance } from './provenance.js';
+import { logger } from './logger.js';
 
 export interface CompressionResult {
   axioms: Axiom[];
@@ -34,6 +35,23 @@ export interface CascadeMetadata {
  */
 export interface CascadeCompressionResult extends CompressionResult {
   cascade: CascadeMetadata;
+  /** Research-backed guardrail warnings (observability only) */
+  guardrails: GuardrailWarnings;
+}
+
+/**
+ * Guardrail warning messages for observability.
+ * These are warnings only - they do not block synthesis.
+ */
+export interface GuardrailWarnings {
+  /** True if axioms exceed signal count (expansion instead of compression) */
+  expansionWarning: boolean;
+  /** True if axioms exceed cognitive load limit */
+  cognitiveLoadWarning: boolean;
+  /** True if cascade fell back to minimum threshold */
+  fallbackWarning: boolean;
+  /** All warning messages for logging */
+  messages: string[];
 }
 
 /**
@@ -257,6 +275,67 @@ export function generateSoulMd(
 const MIN_AXIOM_TARGET = 3;
 
 /**
+ * Maximum cognitive load limit (hard cap).
+ * Based on research: 30 is upper bound (10 Commandments + buffer).
+ * See docs/research/optimal-axiom-count.md
+ */
+const COGNITIVE_LOAD_CAP = 30;
+
+/**
+ * Check research-backed guardrails and emit warnings.
+ * These are observability warnings only - they do not block synthesis.
+ *
+ * Guardrails:
+ * 1. axioms > signals -> "Expansion instead of compression"
+ * 2. axioms > min(signals * 0.5, 30) -> "Exceeds cognitive load research limits"
+ * 3. effectiveThreshold === 1 -> "Fell back to minimum threshold"
+ *
+ * @param axiomCount - Number of axioms produced
+ * @param signalCount - Number of input signals
+ * @param effectiveThreshold - The N-threshold that produced the result
+ * @returns Guardrail warnings for logging
+ */
+export function checkGuardrails(
+  axiomCount: number,
+  signalCount: number,
+  effectiveThreshold: number
+): GuardrailWarnings {
+  const messages: string[] = [];
+
+  // Guardrail 1: Expansion check (axioms should be fewer than signals)
+  const expansionWarning = axiomCount > signalCount;
+  if (expansionWarning) {
+    messages.push(
+      `[guardrail] Expansion instead of compression: ${axiomCount} axioms > ${signalCount} signals`
+    );
+  }
+
+  // Guardrail 2: Cognitive load check (axioms should be within research limits)
+  const cognitiveLimit = Math.min(signalCount * 0.5, COGNITIVE_LOAD_CAP);
+  const cognitiveLoadWarning = axiomCount > cognitiveLimit;
+  if (cognitiveLoadWarning) {
+    messages.push(
+      `[guardrail] Exceeds cognitive load research limits: ${axiomCount} axioms > ${cognitiveLimit.toFixed(0)} limit (min(signals*0.5, ${COGNITIVE_LOAD_CAP}))`
+    );
+  }
+
+  // Guardrail 3: Fallback threshold check
+  const fallbackWarning = effectiveThreshold === 1;
+  if (fallbackWarning) {
+    messages.push(
+      `[guardrail] Fell back to minimum threshold (N>=1): sparse evidence in input`
+    );
+  }
+
+  return {
+    expansionWarning,
+    cognitiveLoadWarning,
+    fallbackWarning,
+    messages,
+  };
+}
+
+/**
  * Cascade thresholds to try, from strictest to most lenient.
  */
 const CASCADE_THRESHOLDS = [3, 2, 1] as const;
@@ -315,11 +394,27 @@ export async function compressPrinciplesWithCascade(
   // Run actual compression with the selected threshold
   const result = await compressPrinciples(llm, principles, effectiveThreshold);
 
+  // Check research-backed guardrails (warnings only, do not block)
+  // Signal count approximated from principles (each principle represents clustered signals)
+  // For accurate signal count, caller should track original signals
+  const signalCount = principles.length; // Approximation: 1 principle ~ 1+ signals
+  const guardrails = checkGuardrails(
+    result.axioms.length,
+    signalCount,
+    effectiveThreshold
+  );
+
+  // Log warnings for observability
+  for (const message of guardrails.messages) {
+    logger.warn(message);
+  }
+
   return {
     ...result,
     cascade: {
       effectiveThreshold,
       axiomCountByThreshold,
     },
+    guardrails,
   };
 }

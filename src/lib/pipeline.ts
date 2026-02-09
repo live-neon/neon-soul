@@ -490,10 +490,21 @@ async function reflectiveSynthesis(
   context.trajectoryMetrics = result.trajectoryMetrics;
   context.trajectoryTracker = new TrajectoryTracker(); // For compatibility
 
+  // Log effective threshold (observability)
+  logger.info(`Effective N-threshold: ${result.effectiveThreshold}`);
+
+  // Guardrail warnings are already logged by compressor.ts
+  // Additional pipeline-level logging for cascade usage
+  if (result.effectiveThreshold < 3) {
+    logger.info(
+      `Cascaded from N>=3 to N>=${result.effectiveThreshold} (sparse evidence in input)`
+    );
+  }
+
   context.options.onProgress?.(
     'reflective-synthesis',
     100,
-    `Converged: ${result.converged}, ${result.axioms.length} axioms`
+    `Converged: ${result.converged}, ${result.axioms.length} axioms (N>=${result.effectiveThreshold})`
   );
 
   return context;

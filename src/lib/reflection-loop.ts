@@ -15,7 +15,7 @@
  */
 
 import { createPrincipleStore } from './principle-store.js';
-import { compressPrinciples } from './compressor.js';
+import { compressPrinciples, compressPrinciplesWithCascade, type GuardrailWarnings } from './compressor.js';
 import { TrajectoryTracker, type TrajectoryMetrics } from './trajectory.js';
 import { embed } from './embeddings.js';
 import { cosineSimilarity } from './matcher.js';
@@ -94,6 +94,10 @@ export interface ReflectiveLoopResult {
   converged: boolean;
   /** Convergence iteration (if converged) */
   convergenceIteration: number | undefined;
+  /** Effective N-threshold used (from cascade) */
+  effectiveThreshold: number;
+  /** Research-backed guardrail warnings */
+  guardrails: GuardrailWarnings;
 }
 
 /**
@@ -212,9 +216,9 @@ export async function runReflectiveLoop(
     }
   }
 
-  // Get final state
+  // Get final state - use cascading compression for adaptive threshold + guardrails
   const finalPrinciples = store.getPrinciples();
-  const finalCompression = await compressPrinciples(llm, finalPrinciples, axiomNThreshold);
+  const finalCompression = await compressPrinciplesWithCascade(llm, finalPrinciples);
 
   return {
     principles: finalPrinciples,
@@ -225,6 +229,8 @@ export async function runReflectiveLoop(
     totalIterations: iterations.length,
     converged,
     convergenceIteration,
+    effectiveThreshold: finalCompression.cascade.effectiveThreshold,
+    guardrails: finalCompression.guardrails,
   };
 }
 

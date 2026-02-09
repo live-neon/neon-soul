@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { compressPrinciples } from '../../src/lib/compressor.js';
+import { compressPrinciples, checkGuardrails } from '../../src/lib/compressor.js';
 import { createMockLLM } from '../mocks/llm-mock.js';
 import type { Principle } from '../../src/types/principle.js';
 
@@ -293,6 +293,105 @@ describe('Compressor', () => {
       // Uses threshold 3, so p4 (N=2) is unconverged
       expect(result.unconverged).toHaveLength(1);
       expect(result.unconverged[0]?.id).toBe('p4');
+    });
+
+    it('includes guardrails in result', async () => {
+      const llm = createMockLLM();
+      const principles = [
+        createTestPrinciple('p1', 'Principle A', 3),
+        createTestPrinciple('p2', 'Principle B', 3),
+        createTestPrinciple('p3', 'Principle C', 3),
+      ];
+
+      const { compressPrinciplesWithCascade } = await import(
+        '../../src/lib/compressor.js'
+      );
+      const result = await compressPrinciplesWithCascade(llm, principles);
+
+      expect(result.guardrails).toBeDefined();
+      expect(typeof result.guardrails.expansionWarning).toBe('boolean');
+      expect(typeof result.guardrails.cognitiveLoadWarning).toBe('boolean');
+      expect(typeof result.guardrails.fallbackWarning).toBe('boolean');
+      expect(Array.isArray(result.guardrails.messages)).toBe(true);
+    });
+  });
+
+  describe('checkGuardrails', () => {
+    it('warns when axioms exceed signal count (expansion)', () => {
+      const result = checkGuardrails(10, 5, 3);
+
+      expect(result.expansionWarning).toBe(true);
+      expect(result.messages.some((m) => m.includes('Expansion instead of compression'))).toBe(true);
+    });
+
+    it('no expansion warning when axioms <= signals', () => {
+      const result = checkGuardrails(5, 10, 3);
+
+      expect(result.expansionWarning).toBe(false);
+    });
+
+    it('warns when axioms exceed cognitive load limit (signals * 0.5)', () => {
+      const result = checkGuardrails(10, 10, 3);
+      // limit = min(10 * 0.5, 30) = 5, so 10 > 5 triggers warning
+
+      expect(result.cognitiveLoadWarning).toBe(true);
+      expect(result.messages.some((m) => m.includes('Exceeds cognitive load'))).toBe(true);
+    });
+
+    it('warns when axioms exceed cognitive load cap (30)', () => {
+      const result = checkGuardrails(35, 100, 3);
+      // limit = min(100 * 0.5, 30) = 30, so 35 > 30 triggers warning
+
+      expect(result.cognitiveLoadWarning).toBe(true);
+      expect(result.messages.some((m) => m.includes('30'))).toBe(true);
+    });
+
+    it('no cognitive load warning when axioms within limit', () => {
+      const result = checkGuardrails(5, 20, 3);
+      // limit = min(20 * 0.5, 30) = 10, so 5 <= 10 no warning
+
+      expect(result.cognitiveLoadWarning).toBe(false);
+    });
+
+    it('warns when effective threshold falls to 1 (fallback)', () => {
+      const result = checkGuardrails(3, 10, 1);
+
+      expect(result.fallbackWarning).toBe(true);
+      expect(result.messages.some((m) => m.includes('Fell back to minimum threshold'))).toBe(true);
+    });
+
+    it('no fallback warning when threshold is 2 or 3', () => {
+      const result2 = checkGuardrails(3, 10, 2);
+      const result3 = checkGuardrails(3, 10, 3);
+
+      expect(result2.fallbackWarning).toBe(false);
+      expect(result3.fallbackWarning).toBe(false);
+    });
+
+    it('can trigger multiple warnings simultaneously', () => {
+      // axioms=15, signals=10, threshold=1
+      // expansion: 15 > 10 = true
+      // cognitive: 15 > min(10*0.5, 30) = 15 > 5 = true
+      // fallback: threshold=1 = true
+      const result = checkGuardrails(15, 10, 1);
+
+      expect(result.expansionWarning).toBe(true);
+      expect(result.cognitiveLoadWarning).toBe(true);
+      expect(result.fallbackWarning).toBe(true);
+      expect(result.messages).toHaveLength(3);
+    });
+
+    it('returns empty messages when no warnings', () => {
+      const result = checkGuardrails(3, 20, 3);
+      // 3 axioms, 20 signals, threshold 3
+      // expansion: 3 <= 20 = false
+      // cognitive: 3 <= min(10, 30) = 3 <= 10 = false
+      // fallback: threshold=3 != 1 = false
+
+      expect(result.expansionWarning).toBe(false);
+      expect(result.cognitiveLoadWarning).toBe(false);
+      expect(result.fallbackWarning).toBe(false);
+      expect(result.messages).toHaveLength(0);
     });
   });
 });
