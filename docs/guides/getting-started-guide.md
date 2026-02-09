@@ -1,7 +1,7 @@
 # Getting Started: OpenClaw + NEON-SOUL
 
 **Purpose**: Step-by-step setup for running OpenClaw with NEON-SOUL soul synthesis
-**Time**: ~15 minutes
+**Time**: 30-45 minutes (first run includes Docker pulls, npm install, LLM model download)
 **Audience**: Developers new to OpenClaw or NEON-SOUL
 
 ---
@@ -51,10 +51,12 @@ Before starting, ensure you have:
 
 ## Step 1: Install OpenClaw
 
-### Option A: Quick Setup (Recommended)
+### Option A: Upstream OpenClaw (Full Features)
+
+For the complete OpenClaw experience with chat integrations:
 
 ```bash
-# Clone OpenClaw
+# Clone upstream OpenClaw
 git clone https://github.com/openclaw/openclaw.git
 cd openclaw
 
@@ -62,28 +64,23 @@ cd openclaw
 ./docker-setup.sh
 ```
 
-The setup wizard will:
-1. Build the gateway Docker image
-2. Configure your LLM provider (Anthropic, OpenAI, or Ollama)
-3. Start the gateway container
-4. Generate an access token
+The setup wizard configures your LLM provider and starts the gateway.
 
-### Option B: Manual Setup
+**Access**: http://127.0.0.1:18789/
+
+See [OpenClaw Docker Documentation](https://docs.openclaw.ai/install/docker) for details.
+
+### Option B: NEON-SOUL Development Stack (Recommended for this guide)
+
+For local development with NEON-SOUL, use our pre-configured Docker setup:
 
 ```bash
-# Clone and enter directory
-git clone https://github.com/openclaw/openclaw.git
-cd openclaw
-
-# Build image
-docker build -t openclaw:local -f Dockerfile .
-
-# Run onboarding
-docker compose run --rm openclaw-cli onboard
-
-# Start gateway
-docker compose up -d openclaw-gateway
+# After cloning NEON-SOUL (Step 4), use our docker-compose
+cd neon-soul
+./scripts/setup-openclaw.sh
 ```
+
+This creates the workspace structure and starts a minimal OpenClaw environment.
 
 ### Verify Installation
 
@@ -92,22 +89,22 @@ docker compose up -d openclaw-gateway
 docker compose ps
 
 # Expected output:
-# NAME               STATUS    PORTS
-# openclaw-gateway   Up        0.0.0.0:18789->18789/tcp
+# NAME           STATUS    PORTS
+# openclaw-dev   Up        0.0.0.0:3000->3000/tcp, 0.0.0.0:8080->8080/tcp
 
 # View logs
-docker compose logs openclaw-gateway -f
+docker compose logs openclaw -f
 ```
 
-Access the Control UI: **http://127.0.0.1:18789/**
-
-Enter the token from setup (or retrieve with `docker compose run --rm openclaw-cli dashboard --no-open`).
+**Web UI**: http://localhost:3000 | **API**: http://localhost:8080
 
 ---
 
 ## Step 2: Configure Workspace
 
-OpenClaw stores data in `~/.openclaw/workspace/`. This is where NEON-SOUL reads memory files.
+OpenClaw stores data in `~/.openclaw/workspace/` by default. This is where NEON-SOUL reads memory files.
+
+**Custom path?** Set `OPENCLAW_WORKSPACE` environment variable if your workspace is elsewhere.
 
 ### Verify Structure
 
@@ -201,9 +198,9 @@ EOF
 ### diary/first-entry.md
 
 ```bash
-cat > ~/.openclaw/workspace/memory/diary/2026-02-08.md << 'EOF'
+# Create a first diary entry (use today's date as filename)
+cat > ~/.openclaw/workspace/memory/diary/first-entry.md << 'EOF'
 ---
-date: 2026-02-08
 mood: curious
 ---
 
@@ -230,7 +227,7 @@ EOF
 
 ```bash
 # From your projects directory
-git clone https://github.com/your-org/neon-soul.git
+git clone https://github.com/geeks-accelerator/neon-soul.git
 cd neon-soul
 
 # Install dependencies
@@ -259,13 +256,34 @@ echo "OPENCLAW_WORKSPACE=~/.openclaw/workspace" > .env
 
 ---
 
+## Step 4.5: Start Ollama (Required for CLI)
+
+NEON-SOUL CLI requires a local LLM. Start Ollama:
+
+```bash
+# From the neon-soul directory
+docker compose -f docker/docker-compose.ollama.yml up -d
+
+# Pull llama3 model (~4GB download)
+docker exec neon-soul-ollama ollama pull llama3
+
+# Verify Ollama is responding
+curl http://localhost:11434/api/tags
+```
+
+**Note**: If you're using OpenClaw's built-in LLM (Option A above), you can skip this step and use `/neon-soul synthesize` in the chat interface instead.
+
+---
+
 ## Step 5: Run Your First Synthesis
+
+**Prerequisites**: Ollama must be running for CLI synthesis (see [Optional: Local LLM with Ollama](#optional-local-llm-with-ollama)).
 
 ### Preview (Dry Run)
 
 ```bash
 # See what would happen without writing
-npx tsx scripts/test-pipeline.ts --dry-run
+npx tsx src/commands/synthesize.ts --dry-run --verbose
 ```
 
 This shows:
@@ -277,12 +295,18 @@ This shows:
 
 ```bash
 # Run full synthesis
-npx tsx scripts/test-pipeline.ts
+npx tsx src/commands/synthesize.ts --force
 ```
 
 Output location: `~/.openclaw/workspace/.neon-soul/`
 
-### View Results
+---
+
+## Step 6: Explore Your Soul
+
+### Terminal Commands
+
+View synthesis results directly:
 
 ```bash
 # Check generated SOUL.md
@@ -295,15 +319,11 @@ cat ~/.openclaw/workspace/.neon-soul/signals.json | head -50
 cat ~/.openclaw/workspace/.neon-soul/axioms.json
 ```
 
----
+### OpenClaw Chat Commands
 
-## Step 6: Explore Your Soul
+If using OpenClaw's chat interface (Web UI, Telegram, Discord, Slack):
 
-### Status Check
-
-If using as OpenClaw skill:
-
-```bash
+```
 /neon-soul status
 ```
 
@@ -317,7 +337,8 @@ Dimension Coverage: 4/7 (57%)
 
 ### Trace an Axiom
 
-```bash
+In OpenClaw chat:
+```
 /neon-soul trace ax_honesty
 ```
 
@@ -327,14 +348,16 @@ Output:
 └── "prioritize honesty" (N=3)
     ├── preferences/communication.md:8
     ├── goals/current.md:14
-    └── diary/2026-02-08.md:15
+    └── diary/first-entry.md:15
 ```
 
 ### Full Audit
 
-```bash
+```
 /neon-soul audit --stats
 ```
+
+**Note**: `/neon-soul` commands run in OpenClaw's chat interface, not the terminal. They use OpenClaw's LLM context for semantic operations.
 
 ---
 
@@ -344,10 +367,10 @@ Output:
 
 | Problem | Solution |
 |---------|----------|
-| Container not starting | `docker compose logs openclaw-gateway` |
+| Container not starting | `docker compose logs openclaw` |
 | Permission denied | `sudo chown -R 1000:1000 ~/.openclaw` |
-| Port 18789 in use | Edit `docker-compose.yml` port mapping |
-| Token not working | `docker compose run --rm openclaw-cli dashboard --no-open` |
+| Port 3000/8080 in use | Edit `docker/docker-compose.yml` port mapping |
+| No LLM provider | Start Ollama (see Step 4.5) |
 
 ### NEON-SOUL Issues
 
@@ -365,26 +388,6 @@ Output:
 | Files not detected | Check `OPENCLAW_WORKSPACE` env var |
 | Frontmatter errors | Ensure YAML between `---` delimiters |
 | Unicode issues | Save files as UTF-8 |
-
----
-
-## Optional: Local LLM with Ollama
-
-For real LLM testing without API keys:
-
-```bash
-# Start Ollama
-docker compose -f docker/docker-compose.ollama.yml up -d
-
-# Pull a model
-docker exec neon-soul-ollama ollama pull llama3
-
-# Verify
-curl http://localhost:11434/api/tags
-
-# Run tests with real LLM
-USE_REAL_LLM=true npm test tests/e2e/real-llm.test.ts
-```
 
 ---
 
@@ -406,11 +409,14 @@ USE_REAL_LLM=true npm test tests/e2e/real-llm.test.ts
 # OpenClaw
 docker compose up -d                    # Start
 docker compose down                     # Stop
-docker compose logs -f openclaw-gateway # Logs
+docker compose logs -f openclaw         # Logs
 
-# NEON-SOUL
-npx tsx scripts/test-pipeline.ts        # Run synthesis
-npm test                                # Run tests
+# NEON-SOUL (Terminal - requires Ollama)
+npx tsx src/commands/synthesize.ts --dry-run   # Preview changes
+npx tsx src/commands/synthesize.ts --force     # Run synthesis
+npm test                                       # Run tests
+
+# NEON-SOUL (OpenClaw Chat Interface)
 /neon-soul status                       # Check state
 /neon-soul synthesize --dry-run         # Preview changes
 /neon-soul rollback --force             # Restore backup
@@ -430,8 +436,10 @@ npm test                                # Run tests
 
 | Port | Service |
 |------|---------|
-| 18789 | OpenClaw Control UI |
-| 11434 | Ollama API (optional) |
+| 3000 | OpenClaw Web UI (NEON-SOUL dev stack) |
+| 8080 | OpenClaw API (NEON-SOUL dev stack) |
+| 18789 | OpenClaw Control UI (upstream) |
+| 11434 | Ollama API |
 
 ---
 

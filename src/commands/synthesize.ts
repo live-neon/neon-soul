@@ -21,10 +21,11 @@
  *   npx tsx src/commands/synthesize.ts --format native --force
  */
 
-import { runPipeline, type PipelineOptions } from '../lib/pipeline.js';
+import { runPipeline, formatPipelineResult, type PipelineOptions } from '../lib/pipeline.js';
 import { getDefaultMemoryPath, getDefaultOutputPath, resolvePath } from '../lib/paths.js';
 import type { LLMProvider } from '../types/llm.js';
 import { LLMRequiredError } from '../types/llm.js';
+import { OllamaLLMProvider } from '../lib/llm-providers/ollama-provider.js';
 
 interface CommandOptions {
   memoryPath: string;
@@ -134,12 +135,67 @@ Examples:
 `);
 }
 
+/**
+ * Run synthesis with a detected or provided LLM provider.
+ */
+async function runSynthesisWithLLM(options: CommandOptions, llm: LLMProvider): Promise<void> {
+  const pipelineOptions: PipelineOptions = {
+    memoryPath: options.memoryPath,
+    outputPath: options.outputPath,
+    llm,
+    format: options.format,
+    force: options.force,
+    dryRun: options.dryRun,
+  };
+
+  const result = await runPipeline(pipelineOptions);
+  console.log(formatPipelineResult(result));
+
+  if (!result.success && !result.skipped) {
+    process.exit(1);
+  }
+}
+
+/**
+ * CLI entry point with LLM auto-detection.
+ *
+ * Detection order:
+ * 1. Ollama (local, no API key needed)
+ * 2. Future: ANTHROPIC_API_KEY environment variable
+ * 3. Future: OPENAI_API_KEY environment variable
+ */
 async function main(): Promise<void> {
-  // CLI mode requires LLM provider from environment or config
-  // This is a placeholder - in production, LLM would be configured via env vars
-  console.error('\n❌ CLI mode is not yet supported.');
-  console.error('The synthesize command requires an LLM provider from OpenClaw skill context.');
-  console.error('Run this as an OpenClaw skill: /neon-soul synthesize\n');
+  const options = parseArgs(process.argv.slice(2));
+
+  if (options.verbose) {
+    console.log('Detecting LLM provider...');
+  }
+
+  // Try Ollama first (local, no API key needed)
+  if (await OllamaLLMProvider.isAvailable()) {
+    if (options.verbose) {
+      console.log('Using Ollama LLM provider (local)');
+    }
+    const llm = new OllamaLLMProvider();
+    await runSynthesisWithLLM(options, llm);
+    return;
+  }
+
+  // Future: Check for API providers
+  // if (process.env.ANTHROPIC_API_KEY) {
+  //   const llm = new AnthropicLLMProvider();
+  //   await runSynthesisWithLLM(options, llm);
+  //   return;
+  // }
+
+  // No LLM provider available - show helpful error
+  console.error('\n❌ No LLM provider available.\n');
+  console.error('Options:\n');
+  console.error('  1. Start Ollama (recommended for local development):');
+  console.error('     docker compose -f docker/docker-compose.ollama.yml up -d');
+  console.error('     docker exec neon-soul-ollama ollama pull llama3\n');
+  console.error('  2. Run as OpenClaw skill (provides LLM context):');
+  console.error('     /neon-soul synthesize\n');
   process.exit(1);
 }
 
