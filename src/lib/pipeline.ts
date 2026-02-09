@@ -501,15 +501,18 @@ async function reflectiveSynthesis(
 
 /**
  * Stage: Validate output.
+ * Logs warnings but never fails - cascading threshold handles adaptation.
  */
 async function validateOutput(
   context: PipelineContext
 ): Promise<PipelineContext> {
   const validation = validateSoulOutput(context);
 
-  if (!validation.valid) {
-    context.error = new Error(`Validation failed: ${validation.reason}`);
-    return context;
+  // Log warnings for observability
+  if (validation.warnings.length > 0) {
+    for (const warning of validation.warnings) {
+      logger.warn(warning);
+    }
   }
 
   // Persist synthesis data for commands (status, trace, audit)
@@ -540,18 +543,24 @@ async function validateOutput(
 
 /**
  * Validate generated soul output.
+ *
+ * Always returns valid=true with warnings. The cascading threshold in
+ * compressor.ts handles adaptation - validation just observes and warns.
+ * Add --strict flag for CI if hard failures are needed (separate concern).
  */
-export function validateSoulOutput(context: PipelineContext): ValidationResult {
+export function validateSoulOutput(
+  context: PipelineContext
+): ValidationResult {
   const warnings: string[] = [];
 
-  // Check axiom count
+  // Check axiom count - warn if zero
   if (!context.axioms || context.axioms.length === 0) {
-    return { valid: false, reason: 'no-axioms-generated', warnings };
+    warnings.push('No axioms generated (cascading threshold may have been used)');
   }
 
   // Check dimension coverage
   const dimensions = new Set<SoulCraftDimension>();
-  for (const axiom of context.axioms) {
+  for (const axiom of context.axioms ?? []) {
     if (axiom.dimension) {
       dimensions.add(axiom.dimension);
     }
@@ -566,7 +575,10 @@ export function validateSoulOutput(context: PipelineContext): ValidationResult {
     warnings.push(`Low principle count: ${context.principles?.length ?? 0}`);
   }
 
-  return { valid: true, warnings };
+  return {
+    valid: true,
+    warnings,
+  };
 }
 
 /**
