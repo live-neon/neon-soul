@@ -54,5 +54,10 @@
   "files": [
     "dist",
     "skill"
-  ]
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/geeks-accelerator/neon-soul.git"
+  },
+  "homepage": "https://liveneon.ai"
 }
