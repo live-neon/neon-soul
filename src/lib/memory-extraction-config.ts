@@ -15,7 +15,7 @@
  *   - semantic-classifier.ts (LLM-based classification)
  */
 
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import type { Signal, SignalType, SoulCraftDimension } from '../types/signal.js';
 import type { MemoryFile, MemoryCategory } from './memory-walker.js';
 import type { LLMProvider } from '../types/llm.js';
@@ -272,7 +272,7 @@ async function extractFromSections(memoryFile: MemoryFile, llm: LLMProvider): Pr
         const dimension = await classifyDimension(llm, item);
         const embedding = await embed(item);
         signals.push({
-          id: uuidv4(),
+          id: randomUUID(),
           type: signalType,
           text: item,
           confidence: baseConfidence,
@@ -296,7 +296,7 @@ async function extractFromSections(memoryFile: MemoryFile, llm: LLMProvider): Pr
         const dimension = await classifyDimension(llm, content.slice(0, 500));
         const embedding = await embed(content.slice(0, 500));
         signals.push({
-          id: uuidv4(),
+          id: randomUUID(),
           type: signalType,
           text: content.slice(0, 200),
           confidence: baseConfidence,
@@ -351,7 +351,7 @@ async function createSignal(
   const embedding = await embed(raw.text);
 
   return {
-    id: uuidv4(),
+    id: randomUUID(),
     type: raw.type,
     text: raw.text,
     confidence: raw.confidence,
