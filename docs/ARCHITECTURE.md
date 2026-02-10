@@ -1,6 +1,6 @@
 # NEON-SOUL Architecture
 
-**Status**: Production Ready (Phase 4 Complete)
+**Status**: Production Ready (Cascading Thresholds Implemented)
 **Implements**: [Soul Bootstrap Proposal](proposals/soul-bootstrap-pipeline-proposal.md)
 
 ---
@@ -57,8 +57,8 @@ NEON-SOUL is an OpenClaw skill that provides soul synthesis with semantic compre
 | `state.ts` | Incremental processing state | `loadState`, `saveState`, `shouldRunSynthesis` |
 | `backup.ts` | Backup and rollback | `backupFile`, `rollback`, `commitSoulUpdate` |
 | `template-extractor.ts` | Extract signals from SOUL.md templates | `extractFromTemplate`, `extractFromTemplates` |
-| `principle-store.ts` | Accumulate and match principles | `createPrincipleStore`, `PrincipleStore` |
-| `compressor.ts` | Synthesize axioms from principles | `compressPrinciples`, `generateSoulMd` |
+| `principle-store.ts` | Accumulate and match principles | `createPrincipleStore`, `PrincipleStore`, `setThreshold` |
+| `compressor.ts` | Synthesize axioms from principles | `compressPrinciples`, `compressPrinciplesWithCascade`, `generateSoulMd` |
 | `metrics.ts` | Compression measurement | `calculateMetrics`, `formatMetricsReport` |
 | `trajectory.ts` | Stabilization tracking | `TrajectoryTracker`, `calculateStyleMetrics` |
 
@@ -93,19 +93,25 @@ Memory Files (OpenClaw workspace)
        │
        ▼
 ┌──────────────────────┐
-│  Principle Matching  │  cosine similarity ≥ 0.85 → merge
-│  (matcher.ts)        │  new principle if no match
+│  Reflective Loop     │  Iterative synthesis (principle-store persists)
+│  (reflection-loop)   │  N-counts accumulate across iterations
 └──────────────────────┘
        │
        ▼
 ┌──────────────────────┐
-│  Axiom Promotion     │  N-count ≥ 3 → promote to axiom
-│  (provenance.ts)     │  Generate canonical forms (CJK/math/emoji)
+│  Cascading Threshold │  Try N>=3 → N>=2 → N>=1 (adaptive)
+│  (compressor.ts)     │  Tier labels reflect actual N-count
 └──────────────────────┘
        │
        ▼
 ┌──────────────────────┐
-│  Output Validation   │  Verify format, check for regressions
+│  Research Guardrails │  Warnings only (expansion, cognitive load, fallback)
+│  (compressor.ts)     │  Does not block - system adapts
+└──────────────────────┘
+       │
+       ▼
+┌──────────────────────┐
+│  Output Validation   │  Verify format, persist synthesis data
 │                      │  Backup current SOUL.md first
 └──────────────────────┘
        │
@@ -115,6 +121,27 @@ Memory Files (OpenClaw workspace)
 │  + Git Commit        │  Auto-commit if repo
 └──────────────────────┘
 ```
+
+### Cascading Threshold Logic
+
+The axiom promotion stage uses cascading thresholds to adapt to data quality:
+
+```
+Try N>=3 (high confidence) --> got >= 3 axioms? --> done
+     |
+     v (< 3 axioms)
+Try N>=2 (medium confidence) --> got >= 3 axioms? --> done
+     |
+     v (< 3 axioms)
+Try N>=1 (low confidence) --> use whatever we got
+```
+
+**Tier assignment** is based on actual N-count, not cascade level:
+- Core (N>=5): Highest evidence
+- Domain (N>=3): Solid evidence
+- Emerging (N<3): Still learning
+
+This ensures honest labeling regardless of which cascade level produced the result.
 
 ---
 
