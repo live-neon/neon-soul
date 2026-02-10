@@ -1,0 +1,12 @@
+{
+  "_metadata": {
+    "type": "generate",
+    "hash": "baa2f17705ae8f95",
+    "promptVersion": "v1.0.0",
+    "recordedAt": "2026-02-10T01:40:47.820Z"
+  },
+  "prompt": "Transform this specific statement into an abstract principle.\n\nThe principle should:\n- Capture the core value or preference\n- Be general enough to match similar statements\n- Be actionable (can guide behavior)\n- Stay under 150 characters\n- Use imperative form (e.g., \"Values X over Y\", \"Prioritizes Z\")\n- Do NOT add policies or concepts not present in the original\n- Do NOT use pronouns (I, we, you) - abstract the actor\n- If the original has conditions, preserve them\n\n<signal_text>\nBe honest about what I don't know\n</signal_text>\n\n<dimension_context>\nhonesty-framework\n</dimension_context>\n\nOutput ONLY the generalized principle, nothing else.",
+  "result": {
+    "text": "Values transparency over pretending certainty."
+  }
+}

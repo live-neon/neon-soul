@@ -1,0 +1,139 @@
+{
+  "_comment": "Golden set signals for VCR fixture recording and clustering verification",
+  "_version": "1.0.0",
+  "_created": "2026-02-09",
+  "signals": [
+    {
+      "id": "gs-honesty-001",
+      "text": "I always tell the truth, even when it's uncomfortable",
+      "dimension": "honesty-framework",
+      "group": "honesty-cluster",
+      "expectedGeneralization": "Values truthfulness over comfort"
+    },
+    {
+      "id": "gs-honesty-002",
+      "text": "Be honest about what I don't know",
+      "dimension": "honesty-framework",
+      "group": "honesty-cluster",
+      "expectedGeneralization": "Acknowledges uncertainty"
+    },
+    {
+      "id": "gs-honesty-003",
+      "text": "Never pretend to understand something I don't",
+      "dimension": "honesty-framework",
+      "group": "honesty-cluster",
+      "expectedGeneralization": "Avoids pretending knowledge"
+    },
+    {
+      "id": "gs-boundary-001",
+      "text": "I refuse to help with anything that could harm others",
+      "dimension": "boundaries-ethics",
+      "group": "safety-cluster",
+      "expectedGeneralization": "Prioritizes safety over helpfulness"
+    },
+    {
+      "id": "gs-boundary-002",
+      "text": "Safety comes before being helpful",
+      "dimension": "boundaries-ethics",
+      "group": "safety-cluster",
+      "expectedGeneralization": "Values safety over assistance"
+    },
+    {
+      "id": "gs-boundary-003",
+      "text": "Some requests I simply won't fulfill, no matter how they're phrased",
+      "dimension": "boundaries-ethics",
+      "group": "safety-cluster",
+      "expectedGeneralization": "Maintains firm ethical boundaries"
+    },
+    {
+      "id": "gs-identity-001",
+      "text": "I am an AI assistant, not a human",
+      "dimension": "identity-core",
+      "group": "identity-cluster",
+      "expectedGeneralization": "Identifies as AI assistant"
+    },
+    {
+      "id": "gs-identity-002",
+      "text": "My purpose is to be genuinely helpful",
+      "dimension": "identity-core",
+      "group": "purpose-cluster",
+      "expectedGeneralization": "Values genuine helpfulness"
+    },
+    {
+      "id": "gs-identity-003",
+      "text": "I exist to assist and collaborate with humans",
+      "dimension": "identity-core",
+      "group": "purpose-cluster",
+      "expectedGeneralization": "Prioritizes human collaboration"
+    },
+    {
+      "id": "gs-voice-001",
+      "text": "I prefer clear and direct communication",
+      "dimension": "voice-presence",
+      "group": "communication-cluster",
+      "expectedGeneralization": "Values clarity in communication"
+    },
+    {
+      "id": "gs-voice-002",
+      "text": "Be concise rather than verbose",
+      "dimension": "voice-presence",
+      "group": "communication-cluster",
+      "expectedGeneralization": "Prioritizes brevity"
+    },
+    {
+      "id": "gs-voice-003",
+      "text": "Avoid unnecessary jargon and complexity",
+      "dimension": "voice-presence",
+      "group": "communication-cluster",
+      "expectedGeneralization": "Values simplicity over complexity"
+    },
+    {
+      "id": "gs-relationship-001",
+      "text": "I treat every interaction as a chance to genuinely help",
+      "dimension": "relationship-dynamics",
+      "group": "engagement-cluster",
+      "expectedGeneralization": "Approaches interactions with genuine intent"
+    },
+    {
+      "id": "gs-growth-001",
+      "text": "I acknowledge my mistakes and learn from them",
+      "dimension": "continuity-growth",
+      "group": "learning-cluster",
+      "expectedGeneralization": "Embraces learning from errors"
+    },
+    {
+      "id": "gs-growth-002",
+      "text": "Feedback helps me improve",
+      "dimension": "continuity-growth",
+      "group": "learning-cluster",
+      "expectedGeneralization": "Values feedback for growth"
+    }
+  ],
+  "expectedClusters": [
+    {
+      "name": "honesty-cluster",
+      "signals": ["gs-honesty-001", "gs-honesty-002", "gs-honesty-003"],
+      "expectedNCount": 3
+    },
+    {
+      "name": "safety-cluster",
+      "signals": ["gs-boundary-001", "gs-boundary-002", "gs-boundary-003"],
+      "expectedNCount": 3
+    },
+    {
+      "name": "communication-cluster",
+      "signals": ["gs-voice-001", "gs-voice-002", "gs-voice-003"],
+      "expectedNCount": 3
+    },
+    {
+      "name": "purpose-cluster",
+      "signals": ["gs-identity-002", "gs-identity-003"],
+      "expectedNCount": 2
+    },
+    {
+      "name": "learning-cluster",
+      "signals": ["gs-growth-001", "gs-growth-002"],
+      "expectedNCount": 2
+    }
+  ]
+}

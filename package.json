@@ -21,7 +21,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "vcr:record": "npx tsx scripts/record-vcr-fixtures.ts",
+    "vcr:analyze": "npx tsx scripts/analyze-clustering.ts"
   },
   "keywords": [
     "openclaw",

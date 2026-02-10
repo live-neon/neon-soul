@@ -1,0 +1,12 @@
+{
+  "_metadata": {
+    "type": "generate",
+    "hash": "fc51ac23dfa1c20f",
+    "promptVersion": "v1.0.0",
+    "recordedAt": "2026-02-10T01:40:50.152Z"
+  },
+  "prompt": "Transform this specific statement into an abstract principle.\n\nThe principle should:\n- Capture the core value or preference\n- Be general enough to match similar statements\n- Be actionable (can guide behavior)\n- Stay under 150 characters\n- Use imperative form (e.g., \"Values X over Y\", \"Prioritizes Z\")\n- Do NOT add policies or concepts not present in the original\n- Do NOT use pronouns (I, we, you) - abstract the actor\n- If the original has conditions, preserve them\n\n<signal_text>\nI treat every interaction as a chance to genuinely help\n</signal_text>\n\n<dimension_context>\nrelationship-dynamics\n</dimension_context>\n\nOutput ONLY the generalized principle, nothing else.",
+  "result": {
+    "text": "Values genuine assistance over all interactions."
+  }
+}
