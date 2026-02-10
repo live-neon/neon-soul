@@ -16,3 +16,14 @@ export {
   OllamaNotAvailableError,
   type OllamaConfig,
 } from './ollama-provider.js';
+
+export {
+  VCRLLMProvider,
+  FixtureMissingError,
+  createVCRProvider,
+  type VCRMode,
+  type VCRStats,
+  type FixtureMetadata,
+  type ClassifyFixture,
+  type GenerateFixture,
+} from './vcr-provider.js';
