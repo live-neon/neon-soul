@@ -10,6 +10,24 @@
  * To re-record fixtures:
  *   npm run vcr:record
  *
+ * ## Threshold Tuning Process
+ *
+ * The similarity thresholds were determined empirically:
+ *
+ * 1. **Raw signals at 0.85**: High threshold required because raw signals
+ *    have high lexical variance ("I always tell the truth" vs "be honest").
+ *    Result: ~1:1 compression (no clustering).
+ *
+ * 2. **Generalized signals at 0.45**: Lower threshold works because
+ *    generalization normalizes to similar forms ("Values truthfulness").
+ *    Observed within-cluster similarities: 0.36-0.58.
+ *    Result: ~5:1 compression.
+ *
+ * The ablation study test validates this by comparing all 4 combinations:
+ * raw/gen x high/low threshold.
+ *
+ * @see docs/issues/2026-02-09-signal-generalization-impl-findings.md (Finding #12)
+ *
  * Cross-Reference:
  * - docs/plans/2026-02-09-signal-generalization.md (Stage 4c)
  * - docs/observations/http-vcr-pattern-for-api-testing.md (Part 13)
@@ -55,16 +73,20 @@ interface GoldenSetData {
 let llm: LLMProvider;
 let goldenSet: GoldenSetData;
 
+/** Model used for fixtures - changing this requires re-recording */
+const MODEL_NAME = 'llama3';
+
 beforeAll(async () => {
   // Load golden set
   goldenSet = JSON.parse(readFileSync(GOLDEN_SET_PATH, 'utf-8'));
 
-  // Create VCR-wrapped LLM
-  const realLLM = new OllamaLLMProvider({ model: 'llama3' });
-  llm = new VCRLLMProvider(realLLM, FIXTURE_DIR, VCR_MODE);
+  // Create VCR-wrapped LLM (model name included in fixture key for proper invalidation)
+  const realLLM = new OllamaLLMProvider({ model: MODEL_NAME });
+  llm = new VCRLLMProvider(realLLM, FIXTURE_DIR, VCR_MODE, MODEL_NAME);
 
   console.log(`\n🎬 VCR Mode: ${VCR_MODE}`);
   console.log(`📂 Fixtures: ${FIXTURE_DIR}`);
+  console.log(`🤖 Model: ${MODEL_NAME}`);
   console.log(`📋 Golden Set: ${goldenSet.signals.length} signals\n`);
 });
 
@@ -234,6 +256,80 @@ describe('VCR Generalization Tests', () => {
 
       // Generalization should improve compression
       expect(genRatio).toBeGreaterThanOrEqual(baselineRatio);
+    });
+
+    /**
+     * Ablation study: Isolate contribution of generalization vs threshold tuning.
+     * Tests all 4 combinations to attribute improvement correctly.
+     *
+     * @see docs/issues/2026-02-09-signal-generalization-impl-findings.md (Finding #13)
+     */
+    it('ablation study: isolates generalization vs threshold effects', async () => {
+      const signals = await Promise.all(goldenSet.signals.map(toSignal));
+      const generalizedSignals = await generalizeSignals(llm, signals, MODEL_NAME);
+
+      const HIGH_THRESHOLD = 0.85;
+      const LOW_THRESHOLD = 0.45;
+
+      // 1. Raw signals at high threshold (original baseline)
+      const rawHighStore = createPrincipleStore(llm, HIGH_THRESHOLD);
+      for (const signal of signals) {
+        await rawHighStore.addSignal(signal, signal.dimension);
+      }
+      const rawHighCount = rawHighStore.getPrinciples().length;
+
+      // 2. Raw signals at low threshold
+      const rawLowStore = createPrincipleStore(llm, LOW_THRESHOLD);
+      for (const signal of signals) {
+        await rawLowStore.addSignal(signal, signal.dimension);
+      }
+      const rawLowCount = rawLowStore.getPrinciples().length;
+
+      // 3. Generalized signals at high threshold
+      const genHighStore = createPrincipleStore(llm, HIGH_THRESHOLD);
+      for (const gs of generalizedSignals) {
+        await genHighStore.addGeneralizedSignal(gs, gs.original.dimension);
+      }
+      const genHighCount = genHighStore.getPrinciples().length;
+
+      // 4. Generalized signals at low threshold (current approach)
+      const genLowStore = createPrincipleStore(llm, LOW_THRESHOLD);
+      for (const gs of generalizedSignals) {
+        await genLowStore.addGeneralizedSignal(gs, gs.original.dimension);
+      }
+      const genLowCount = genLowStore.getPrinciples().length;
+
+      // Calculate compression ratios
+      const signalCount = signals.length;
+      const rawHighRatio = (signalCount / rawHighCount).toFixed(1);
+      const rawLowRatio = (signalCount / rawLowCount).toFixed(1);
+      const genHighRatio = (signalCount / genHighCount).toFixed(1);
+      const genLowRatio = (signalCount / genLowCount).toFixed(1);
+
+      console.log('\n  Ablation Study Results:');
+      console.log('  ┌─────────────────────┬────────────────┬────────────────┐');
+      console.log('  │                     │   High 0.85    │   Low 0.45     │');
+      console.log('  ├─────────────────────┼────────────────┼────────────────┤');
+      console.log(`  │ Raw signals         │ ${String(rawHighCount).padStart(2)} (${rawHighRatio}x)     │ ${String(rawLowCount).padStart(2)} (${rawLowRatio}x)     │`);
+      console.log(`  │ Generalized signals │ ${String(genHighCount).padStart(2)} (${genHighRatio}x)     │ ${String(genLowCount).padStart(2)} (${genLowRatio}x)     │`);
+      console.log('  └─────────────────────┴────────────────┴────────────────┘');
+
+      // Calculate contributions
+      const thresholdEffect = rawHighCount - rawLowCount;
+      const genEffectAtHigh = rawHighCount - genHighCount;
+      const genEffectAtLow = rawLowCount - genLowCount;
+      const combinedEffect = rawHighCount - genLowCount;
+
+      console.log('\n  Effect Analysis:');
+      console.log(`    Threshold effect (raw): ${thresholdEffect} fewer principles`);
+      console.log(`    Generalization effect (high): ${genEffectAtHigh} fewer principles`);
+      console.log(`    Generalization effect (low): ${genEffectAtLow} fewer principles`);
+      console.log(`    Combined effect: ${combinedEffect} fewer principles (${rawHighRatio}x → ${genLowRatio}x)`);
+
+      // Generalization should provide benefit at both thresholds
+      // (if it only helps at low threshold, it's just noise reduction)
+      expect(genHighCount).toBeLessThanOrEqual(rawHighCount);
+      expect(genLowCount).toBeLessThanOrEqual(rawLowCount);
     });
   });
 
