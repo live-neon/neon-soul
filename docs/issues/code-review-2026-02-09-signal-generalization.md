@@ -1,7 +1,7 @@
 # Code Review: Signal Generalization Plan
 
 **Created**: 2026-02-09
-**Status**: Open
+**Status**: ✅ Resolved
 **Priority**: High
 **Reviewers**: Codex GPT-5.1 (審碼), Gemini 2.5 Pro (審双)
 **Plan**: [`docs/plans/2026-02-09-signal-generalization.md`](../plans/2026-02-09-signal-generalization.md)
@@ -218,17 +218,19 @@ principle.embedding = signal.embedding
 
 | # | Item | Priority | Source | Status |
 |---|------|----------|--------|--------|
-| 1 | Add LLM failure fallback | Important | N=2 | Pending |
-| 2 | Add downstream value metrics | Important | N=1 verified | Pending |
-| 3 | Add A/B evaluation methodology | Important | N=1 verified | Pending |
-| 4 | Add guardrails for over-abstraction | Important | N=1 verified | Pending |
-| 5 | Expand provenance metadata | Important | N=1 verified | Pending |
-| 6 | Define batching policy | Important | N=1 verified | Pending |
-| 7 | Strengthen prompt constraints | Important | N=1 verified | Pending |
-| 8 | Add threshold tuning plan | Minor | N=1 verified | Pending |
-| 9 | Define unit/integration tests | Minor | N=1 verified | Pending |
-| 10 | Fix code_examples violation | Minor | N=1 verified | Pending |
-| 11 | Mark verification as illustrative | Minor | N=1 verified | Pending |
+| 1 | Add LLM failure fallback | Important | N=2 | ✅ Resolved |
+| 2 | Add downstream value metrics | Important | N=1 verified | ✅ Resolved |
+| 3 | Add A/B evaluation methodology | Important | N=1 verified | ✅ Resolved |
+| 4 | Add guardrails for over-abstraction | Important | N=1 verified | ✅ Resolved |
+| 5 | Expand provenance metadata | Important | N=1 verified | ✅ Resolved |
+| 6 | Define batching policy | Important | N=1 verified | ✅ Resolved |
+| 7 | Strengthen prompt constraints | Important | N=1 verified | ✅ Resolved |
+| 8 | Add threshold tuning plan | Minor | N=1 verified | ✅ Resolved |
+| 9 | Define unit/integration tests | Minor | N=1 verified | ✅ Resolved |
+| 10 | Fix code_examples violation | Minor | N=1 verified | ✅ Resolved |
+| 11 | Mark verification as illustrative | Minor | N=1 verified | ✅ Resolved |
+
+**Resolution**: All items addressed in plan update 2026-02-09. See updated plan for details.
 
 ---
 
