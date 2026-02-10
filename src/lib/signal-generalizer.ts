@@ -1,41 +1,73 @@
 /**
- * Signal Generalization Module
+ * Signal Generalization (Normalization) Module
  *
- * LLM-based transformation of specific signals into abstract principles.
+ * LLM-based transformation of specific signals into abstract principles
+ * (generalization) using consistent representation (normalization).
+ *
  * This implements the "Principle Synthesis" step from PBD methodology,
  * enabling better semantic clustering of related signals.
  *
  * Key features:
  * - Generalizes signals before embedding for improved similarity matching
+ * - Normalizes to actor-agnostic, imperative form for consistent clustering
  * - Fallback to original signal on validation failure
  * - Full provenance tracking (model, prompt version, timestamp)
  * - Batch processing with partial failure handling
+ * - LRU cache with content-aware keys
  *
  * @see docs/plans/2026-02-09-signal-generalization.md
  * @see docs/guides/single-source-pbd-guide.md (Step 4: Principle Synthesis)
  */
 
+import { createHash } from 'node:crypto';
 import type { Signal, GeneralizedSignal, GeneralizationProvenance } from '../types/signal.js';
 import type { LLMProvider } from '../types/llm.js';
 import { requireLLM } from '../types/llm.js';
 import { embed, embedBatch } from './embeddings.js';
 import { logger } from './logger.js';
+import { LRUCache } from 'lru-cache';
 
-/** Prompt template version - increment when prompt structure changes */
+/**
+ * Prompt template version for cache invalidation.
+ *
+ * IMPORTANT: Bump this version when:
+ * - Changing prompt wording or structure in buildPrompt()
+ * - Modifying validation rules in validateGeneralization()
+ * - Adding/removing constraints (length, pronouns, etc.)
+ *
+ * Version format: semver (vMAJOR.MINOR.PATCH)
+ * - Major: Breaking changes to output format
+ * - Minor: New constraints or prompt sections
+ * - Patch: Wording improvements
+ *
+ * Cache is automatically invalidated when version changes.
+ */
 export const PROMPT_VERSION = 'v1.0.0';
 
 /** Maximum allowed length for generalized output */
 const MAX_OUTPUT_LENGTH = 150;
 
-/** Pronouns that should not appear in actor-agnostic output */
-const FORBIDDEN_PRONOUNS = ['I ', 'i ', 'We ', 'we ', 'You ', 'you ', 'My ', 'my ', 'Our ', 'our ', 'Your ', 'your '];
+/**
+ * Regex pattern for pronouns that should not appear in actor-agnostic output.
+ * Uses word boundaries to catch all cases (end of string, punctuation, etc.)
+ */
+const PRONOUN_PATTERN = /\b(I|we|you|my|our|your|me|us|myself|ourselves|yourself|yourselves)\b/i;
+
+/** Maximum input length for prompt safety */
+const MAX_INPUT_LENGTH = 500;
 
 /**
  * Sanitize user input to prevent prompt injection.
- * Escapes XML-like tags in user content.
+ * Escapes XML-like tags, markdown, and limits length.
  */
 function sanitizeForPrompt(text: string): string {
-  return text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return text
+    .slice(0, MAX_INPUT_LENGTH)
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/`/g, "'")
+    .replace(/\n/g, ' ')
+    .trim();
 }
 
 /**
@@ -86,11 +118,10 @@ function validateGeneralization(
     return { valid: false, reason: `exceeds ${MAX_OUTPUT_LENGTH} chars (got ${generalized.length})` };
   }
 
-  // Check for forbidden pronouns
-  for (const pronoun of FORBIDDEN_PRONOUNS) {
-    if (generalized.includes(pronoun)) {
-      return { valid: false, reason: `contains pronoun "${pronoun.trim()}"` };
-    }
+  // Check for forbidden pronouns using word boundary regex
+  const pronounMatch = generalized.match(PRONOUN_PATTERN);
+  if (pronounMatch) {
+    return { valid: false, reason: `contains pronoun "${pronounMatch[0]}"` };
   }
 
   // Basic sanity check - output shouldn't be dramatically longer than input
@@ -121,7 +152,6 @@ export async function generalizeSignal(
   const prompt = buildPrompt(signal.text, signal.dimension);
   let generalizedText: string;
   let usedFallback = false;
-  let confidence: number | undefined;
 
   try {
     // Use generate() if available, otherwise fallback to original
@@ -160,7 +190,6 @@ export async function generalizeSignal(
     prompt_version: PROMPT_VERSION,
     timestamp: new Date().toISOString(),
     used_fallback: usedFallback,
-    ...(confidence !== undefined && { confidence }),
   };
 
   return {
@@ -239,15 +268,18 @@ export async function generalizeSignals(
           // Validate
           const validation = validateGeneralization(signal.text, generalizedText);
           if (!validation.valid) {
-            logger.debug(`[generalizer] Validation failed: ${validation.reason}`);
+            logger.warn(`[generalizer] Batch validation failed for signal ${signal.id}: ${validation.reason}`);
             generalizedText = signal.text;
             usedFallback = true;
           }
         } else {
+          logger.warn(`[generalizer] Batch LLM lacks generate() for signal ${signal.id}`);
           generalizedText = signal.text;
           usedFallback = true;
         }
-      } catch {
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        logger.warn(`[generalizer] Batch LLM failed for signal ${signal.id}: ${errorMsg}`);
         generalizedText = signal.text;
         usedFallback = true;
       }
@@ -295,11 +327,19 @@ export async function generalizeSignals(
       }
     }
 
-    // Log random sample of remainder
+    // Log random sample of remainder (avoiding duplicates)
     const remainder = batchResults.slice(samplesToLog);
-    const randomSampleCount = Math.ceil(remainder.length * logSamplePercent);
-    for (let j = 0; j < randomSampleCount && j < remainder.length; j++) {
-      const idx = Math.floor(Math.random() * remainder.length);
+    const randomSampleCount = Math.min(
+      Math.ceil(remainder.length * logSamplePercent),
+      remainder.length
+    );
+    const usedIndices = new Set<number>();
+    for (let j = 0; j < randomSampleCount && usedIndices.size < remainder.length; j++) {
+      let idx: number;
+      do {
+        idx = Math.floor(Math.random() * remainder.length);
+      } while (usedIndices.has(idx));
+      usedIndices.add(idx);
       const r = remainder[idx];
       if (r) {
         logger.debug(
@@ -324,34 +364,65 @@ export async function generalizeSignals(
   return results;
 }
 
+/** Maximum cache size (each entry ~1.5KB with 384-float embedding) */
+const CACHE_MAX_SIZE = 1000;
+
 /**
- * Cache for generalized signals.
- * Key: signal.id + promptVersion
- * Invalidated when prompt version changes.
+ * LRU cache for generalized signals.
+ * Key: signal.id + textHash + promptVersion
+ * Size-bounded to prevent memory leaks in long-running processes.
+ *
+ * @see docs/issues/2026-02-09-signal-generalization-impl-findings.md (Finding #4)
  */
-const generalizationCache = new Map<string, GeneralizedSignal>();
+const generalizationCache = new LRUCache<string, GeneralizedSignal>({
+  max: CACHE_MAX_SIZE,
+});
 let cachedPromptVersion = PROMPT_VERSION;
 
 /**
- * Get cache key for a signal.
+ * Generate content hash for cache key.
+ * Ensures stale cache entries are not returned when signal content changes.
+ *
+ * @see docs/issues/2026-02-09-signal-generalization-impl-findings.md (Finding #1)
  */
-function getCacheKey(signalId: string): string {
-  return `${signalId}:${PROMPT_VERSION}`;
+function getContentHash(signalText: string): string {
+  return createHash('sha256').update(signalText).digest('hex').slice(0, 16);
+}
+
+/**
+ * Get cache key for a signal.
+ * Includes signal ID, content hash, and prompt version for proper invalidation.
+ */
+function getCacheKey(signalId: string, signalText: string): string {
+  const textHash = getContentHash(signalText);
+  return `${signalId}:${textHash}:${PROMPT_VERSION}`;
 }
 
 /**
  * Generalize signals with caching.
  * Cache is invalidated when prompt version changes.
  *
+ * Note on fallback behavior: When a signal uses fallback (usedFallback: true),
+ * the embedding is generated from the original signal text, not generalized text.
+ * This creates a mixed embedding space. Monitor fallback rate and keep below 10%.
+ *
  * @param llm - LLM provider (required)
  * @param signals - Signals to generalize
  * @param model - Model name for provenance
+ * @param options - Batch processing options (forwarded to generalizeSignals)
  * @returns Array of GeneralizedSignal (from cache or freshly generated)
+ *
+ * @see docs/issues/2026-02-09-signal-generalization-impl-findings.md (Finding #2, #9)
  */
 export async function generalizeSignalsWithCache(
   llm: LLMProvider | null | undefined,
   signals: Signal[],
-  model: string = 'unknown'
+  model: string = 'unknown',
+  options: {
+    batchSize?: number;
+    logSampleSize?: number;
+    logSamplePercent?: number;
+  } = {}
 ): Promise<GeneralizedSignal[]> {
   // Invalidate cache if prompt version changed
   if (cachedPromptVersion !== PROMPT_VERSION) {
@@ -363,9 +434,9 @@ export async function generalizeSignalsWithCache(
   const uncached: Signal[] = [];
   const cachedResults = new Map<string, GeneralizedSignal>();
 
-  // Check cache for each signal
+  // Check cache for each signal (key includes content hash)
   for (const signal of signals) {
-    const key = getCacheKey(signal.id);
+    const key = getCacheKey(signal.id, signal.text);
     const cached = generalizationCache.get(key);
     if (cached) {
       cachedResults.set(signal.id, cached);
@@ -379,14 +450,14 @@ export async function generalizeSignalsWithCache(
     logger.debug(`[generalizer] Cache hits: ${cacheHits}/${signals.length}`);
   }
 
-  // Generalize uncached signals
+  // Generalize uncached signals (forwarding options)
   let freshResults: GeneralizedSignal[] = [];
   if (uncached.length > 0) {
-    freshResults = await generalizeSignals(llm, uncached, model);
+    freshResults = await generalizeSignals(llm, uncached, model, options);
 
-    // Store in cache
+    // Store in cache (key includes content hash)
     for (const result of freshResults) {
-      const key = getCacheKey(result.original.id);
+      const key = getCacheKey(result.original.id, result.original.text);
       generalizationCache.set(key, result);
     }
   }
@@ -405,4 +476,15 @@ export async function generalizeSignalsWithCache(
 export function clearGeneralizationCache(): void {
   generalizationCache.clear();
   logger.debug('[generalizer] Cache cleared');
+}
+
+/**
+ * Get cache statistics for monitoring.
+ * @returns Current cache size and max size
+ */
+export function getCacheStats(): { size: number; maxSize: number } {
+  return {
+    size: generalizationCache.size,
+    maxSize: CACHE_MAX_SIZE,
+  };
 }
