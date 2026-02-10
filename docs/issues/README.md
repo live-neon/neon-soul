@@ -12,6 +12,8 @@ See parent: `/docs/issues/README.md`
 |-------|--------|----------|
 | [Signal Generalization Plan Twin Review](twin-review-2026-02-09-signal-generalization.md) | ✅ resolved | medium |
 | [Signal Generalization Plan Code Review](code-review-2026-02-09-signal-generalization.md) | ✅ resolved | **high** |
+| [Signal Generalization Implementation Findings](2026-02-09-signal-generalization-impl-findings.md) | ✅ resolved | **high** |
+| [Signal Generalization Twin Review Findings](2026-02-09-signal-generalization-twin-review-findings.md) | ✅ resolved | medium |
 | [Missing Signal Generalization Step (PBD Drift)](missing-signal-generalization-step.md) | 🔴 open | **high** |
 | [Axiom Emergence Bootstrap Twin Review](twin-review-2026-02-09-axiom-emergence-bootstrap.md) | ✅ resolved | medium |
 | [Axiom Emergence Bootstrap Code Review](code-review-2026-02-09-axiom-emergence-bootstrap.md) | ✅ resolved | **high** |
