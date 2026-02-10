@@ -300,6 +300,8 @@ Values truthfulness and directness over social comfort
 
 **Issue**: [`docs/issues/missing-signal-generalization-step.md`](../issues/missing-signal-generalization-step.md)
 
+**Code Review**: [`docs/issues/code-review-2026-02-09-signal-generalization.md`](../issues/code-review-2026-02-09-signal-generalization.md)
+
 **PBD Guides**:
 - [`docs/guides/single-source-pbd-guide.md`](../guides/single-source-pbd-guide.md) - Step 4: Principle Synthesis
 - [`docs/guides/multi-source-pbd-guide.md`](../guides/multi-source-pbd-guide.md) - Step 2: Principle Normalization
