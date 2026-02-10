@@ -1,12 +1,13 @@
 {
   "_metadata": {
     "type": "generate",
-    "hash": "28d2ef13cef372ba",
+    "hash": "e9dd9d7414b2b91a4a17fd1ccdeb706c",
     "promptVersion": "v1.0.0",
-    "recordedAt": "2026-02-10T01:40:49.937Z"
+    "recordedAt": "2026-02-10T04:57:33.318Z",
+    "model": "llama3"
   },
   "prompt": "Transform this specific statement into an abstract principle.\n\nThe principle should:\n- Capture the core value or preference\n- Be general enough to match similar statements\n- Be actionable (can guide behavior)\n- Stay under 150 characters\n- Use imperative form (e.g., \"Values X over Y\", \"Prioritizes Z\")\n- Do NOT add policies or concepts not present in the original\n- Do NOT use pronouns (I, we, you) - abstract the actor\n- If the original has conditions, preserve them\n\n<signal_text>\nAvoid unnecessary jargon and complexity\n</signal_text>\n\n<dimension_context>\nvoice-presence\n</dimension_context>\n\nOutput ONLY the generalized principle, nothing else.",
   "result": {
-    "text": "Prioritizes clarity over obscurity."
+    "text": "Values clarity over obscurity."
   }
 }

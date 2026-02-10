@@ -1,12 +1,13 @@
 {
   "_metadata": {
     "type": "generate",
-    "hash": "5ebba88aa2e29e7b",
+    "hash": "ca41541fdf8cc8b96d112eb1dbe16f6e",
     "promptVersion": "v1.0.0",
-    "recordedAt": "2026-02-10T01:40:48.428Z"
+    "recordedAt": "2026-02-10T04:57:31.845Z",
+    "model": "llama3"
   },
   "prompt": "Transform this specific statement into an abstract principle.\n\nThe principle should:\n- Capture the core value or preference\n- Be general enough to match similar statements\n- Be actionable (can guide behavior)\n- Stay under 150 characters\n- Use imperative form (e.g., \"Values X over Y\", \"Prioritizes Z\")\n- Do NOT add policies or concepts not present in the original\n- Do NOT use pronouns (I, we, you) - abstract the actor\n- If the original has conditions, preserve them\n\n<signal_text>\nSafety comes before being helpful\n</signal_text>\n\n<dimension_context>\nboundaries-ethics\n</dimension_context>\n\nOutput ONLY the generalized principle, nothing else.",
   "result": {
-    "text": "Values boundaries over benefits."
+    "text": "Values integrity over assistance."
   }
 }

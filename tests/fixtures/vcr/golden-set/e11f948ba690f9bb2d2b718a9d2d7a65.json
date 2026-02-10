@@ -1,12 +1,13 @@
 {
   "_metadata": {
     "type": "generate",
-    "hash": "986f469da0089fb0",
+    "hash": "e11f948ba690f9bb2d2b718a9d2d7a65",
     "promptVersion": "v1.0.0",
-    "recordedAt": "2026-02-10T01:40:50.573Z"
+    "recordedAt": "2026-02-10T04:57:33.993Z",
+    "model": "llama3"
   },
   "prompt": "Transform this specific statement into an abstract principle.\n\nThe principle should:\n- Capture the core value or preference\n- Be general enough to match similar statements\n- Be actionable (can guide behavior)\n- Stay under 150 characters\n- Use imperative form (e.g., \"Values X over Y\", \"Prioritizes Z\")\n- Do NOT add policies or concepts not present in the original\n- Do NOT use pronouns (I, we, you) - abstract the actor\n- If the original has conditions, preserve them\n\n<signal_text>\nFeedback helps me improve\n</signal_text>\n\n<dimension_context>\ncontinuity-growth\n</dimension_context>\n\nOutput ONLY the generalized principle, nothing else.",
   "result": {
-    "text": "Values feedback over stagnation."
+    "text": "Values continuous growth through constructive feedback."
   }
 }
