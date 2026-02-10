@@ -2,7 +2,7 @@
  * Principle types - intermediate stage between signals and axioms.
  */
 
-import type { SignalSource } from './signal.js';
+import type { SignalSource, GeneralizationProvenance } from './signal.js';
 import type { SoulCraftDimension } from './dimensions.js';
 
 export interface PrincipleProvenance {
@@ -10,8 +10,12 @@ export interface PrincipleProvenance {
     id: string;
     similarity: number;
     source: SignalSource;
+    /** Original signal text (preserved for voice) */
+    original_text?: string;
   }>;
   merged_at: string; // ISO timestamp
+  /** Generalization metadata for the principle text */
+  generalization?: GeneralizationProvenance;
 }
 
 export interface PrincipleEvent {

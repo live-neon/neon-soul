@@ -4,7 +4,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import type { Signal } from '../types/signal.js';
+import type { Signal, GeneralizedSignal } from '../types/signal.js';
 import type { Principle, PrincipleProvenance } from '../types/principle.js';
 import type { SoulCraftDimension } from '../types/dimensions.js';
 import type { LLMProvider } from '../types/llm.js';
@@ -15,6 +15,8 @@ import { logger } from './logger.js';
 export interface PrincipleStore {
   principles: Map<string, Principle>;
   addSignal(signal: Signal, dimension?: SoulCraftDimension): Promise<AddSignalResult>;
+  /** Add a generalized signal (uses generalized text for principle, preserves original in provenance) */
+  addGeneralizedSignal(generalizedSignal: GeneralizedSignal, dimension?: SoulCraftDimension): Promise<AddSignalResult>;
   getPrinciples(): Principle[];
   getPrinciplesAboveN(threshold: number): Principle[];
   /** Update similarity threshold for future signal matching (N-counts preserved) */
@@ -217,6 +219,147 @@ export function createPrincipleStore(
     return { action: 'created', principleId, similarity: bestSimilarity };
   }
 
+  /**
+   * Add a generalized signal to the principle store.
+   * Uses generalized text for principle text and matching,
+   * while preserving original signal text in provenance.
+   */
+  async function addGeneralizedSignal(
+    generalizedSignal: GeneralizedSignal,
+    dimension?: SoulCraftDimension
+  ): Promise<AddSignalResult> {
+    const { original: signal, generalizedText, embedding, provenance } = generalizedSignal;
+
+    // Bootstrap: first signal always creates first principle
+    if (principles.size === 0) {
+      const principleId = generatePrincipleId();
+      const effectiveDimension = dimension ?? signal.dimension ?? await classifyDimension(llm, generalizedText);
+
+      const principleProvenance: PrincipleProvenance = {
+        signals: [
+          {
+            id: signal.id,
+            similarity: 1.0,
+            source: signal.source,
+            original_text: signal.text,
+          },
+        ],
+        merged_at: new Date().toISOString(),
+        generalization: provenance,
+      };
+
+      const principle: Principle = {
+        id: principleId,
+        text: generalizedText, // Use generalized text
+        dimension: effectiveDimension,
+        strength: signal.confidence,
+        n_count: 1,
+        embedding: [...embedding], // Use embedding of generalized text
+        similarity_threshold: similarityThreshold,
+        derived_from: principleProvenance,
+        history: [
+          {
+            type: 'created',
+            timestamp: new Date().toISOString(),
+            details: `Created from signal ${signal.id} (generalized${provenance.used_fallback ? ', fallback' : ''})`,
+          },
+        ],
+      };
+
+      principles.set(principleId, principle);
+      return { action: 'created', principleId, similarity: 1.0 };
+    }
+
+    // Find best match among existing principles (using generalized embedding)
+    let bestPrinciple: Principle | null = null;
+    let bestSimilarity = -1;
+
+    for (const principle of principles.values()) {
+      const similarity = cosineSimilarity(embedding, principle.embedding);
+      if (similarity > bestSimilarity) {
+        bestSimilarity = similarity;
+        bestPrinciple = principle;
+      }
+    }
+
+    // Diagnostic: Log matching decision
+    const matchDecision = bestSimilarity >= similarityThreshold ? 'MATCH' : 'NO_MATCH';
+    logger.debug(`[matching] ${matchDecision}: similarity=${bestSimilarity.toFixed(3)} threshold=${similarityThreshold.toFixed(2)} generalized="${generalizedText.slice(0, 50)}..."`);
+
+    // If similarity >= threshold, reinforce existing principle
+    if (bestPrinciple && bestSimilarity >= similarityThreshold) {
+      const currentCount = bestPrinciple.n_count;
+      const newCentroid = updateCentroid(
+        bestPrinciple.embedding,
+        currentCount,
+        embedding
+      );
+
+      // Update principle
+      bestPrinciple.embedding = newCentroid;
+      bestPrinciple.n_count = currentCount + 1;
+      bestPrinciple.strength = Math.min(
+        1.0,
+        bestPrinciple.strength + signal.confidence * 0.1
+      );
+      bestPrinciple.derived_from.signals.push({
+        id: signal.id,
+        similarity: bestSimilarity,
+        source: signal.source,
+        original_text: signal.text,
+      });
+      bestPrinciple.history.push({
+        type: 'reinforced',
+        timestamp: new Date().toISOString(),
+        details: `Reinforced by signal ${signal.id} (similarity: ${bestSimilarity.toFixed(3)}, generalized${provenance.used_fallback ? ', fallback' : ''})`,
+      });
+
+      return {
+        action: 'reinforced',
+        principleId: bestPrinciple.id,
+        similarity: bestSimilarity,
+      };
+    }
+
+    // Create new principle candidate
+    const principleId = generatePrincipleId();
+    const effectiveDimension = dimension ?? signal.dimension ?? await classifyDimension(llm, generalizedText);
+
+    const principleProvenance: PrincipleProvenance = {
+      signals: [
+        {
+          id: signal.id,
+          similarity: 1.0,
+          source: signal.source,
+          original_text: signal.text,
+        },
+      ],
+      merged_at: new Date().toISOString(),
+      generalization: provenance,
+    };
+
+    const principle: Principle = {
+      id: principleId,
+      text: generalizedText, // Use generalized text
+      dimension: effectiveDimension,
+      strength: signal.confidence,
+      n_count: 1,
+      embedding: [...embedding], // Use embedding of generalized text
+      similarity_threshold: similarityThreshold,
+      derived_from: principleProvenance,
+      history: [
+        {
+          type: 'created',
+          timestamp: new Date().toISOString(),
+          details: `Created from signal ${signal.id} (best match was ${bestSimilarity.toFixed(3)}, generalized${provenance.used_fallback ? ', fallback' : ''})`,
+        },
+      ],
+    };
+
+    principles.set(principleId, principle);
+    return { action: 'created', principleId, similarity: bestSimilarity };
+  }
+
   function getPrinciples(): Principle[] {
     return Array.from(principles.values());
   }
@@ -228,6 +371,7 @@ export function createPrincipleStore(
   return {
     principles,
     addSignal,
+    addGeneralizedSignal,
     getPrinciples,
     getPrinciplesAboveN,
     setThreshold,
