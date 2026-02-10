@@ -12,15 +12,15 @@ review_principles: |
 trigger: think hard
 ---
 
-# Plan: liveneon.org Landing Page
+# Plan: liveneon.ai Landing Page
 
 ## Problem Statement
 
-NEON-SOUL lacks a public web presence. The project needs a landing page at liveneon.org that communicates its value proposition through layered depth (accessible surface for everyone, technical depth for developers) while establishing brand identity.
+NEON-SOUL lacks a public web presence. The project needs a landing page at liveneon.ai that communicates its value proposition through layered depth (accessible surface for everyone, technical depth for developers) while establishing brand identity.
 
 **Root cause**: No marketing/brand materials exist beyond technical documentation.
 
-**Solution**: Create a single-page landing site with 2-layer messaging (surface/depth), dark neon aesthetic, and CJK accents. Contact: soul@liveneon.org.
+**Solution**: Create a single-page landing site with 2-layer messaging (surface/depth), dark neon aesthetic, and CJK accents. Contact: soul@liveneon.ai.
 
 ## Brand Identity Summary
 
@@ -105,7 +105,7 @@ OpenClaw users and AI enthusiasts self-select into the depth layer.
 **Decisions**:
 - Static HTML/CSS/JS (no framework - simple, fast, no build step)
 - Host on Railway.com (supports subdirectory, auto-HTTPS, free tier)
-- Custom domain: liveneon.org
+- Custom domain: liveneon.ai
 
 **Railway Configuration** (railway.json):
 - Static site serving (no build step needed)
@@ -126,7 +126,7 @@ OpenClaw users and AI enthusiasts self-select into the depth layer.
 - [ ] Local preview verified working
 - [ ] .gitignore updated for any build artifacts
 
-**Commit**: `chore(neon-soul): scaffold liveneon.org website structure`
+**Commit**: `chore(neon-soul): scaffold liveneon.ai website structure`
 
 ---
 
@@ -164,7 +164,7 @@ OpenClaw users and AI enthusiasts self-select into the depth layer.
 - [ ] Glow effect utility class exists
 - [ ] Each CSS file under 150 lines (advisory)
 
-**Commit**: `feat(neon-soul): add design system for liveneon.org`
+**Commit**: `feat(neon-soul): add design system for liveneon.ai`
 
 ---
 
@@ -186,7 +186,7 @@ OpenClaw users and AI enthusiasts self-select into the depth layer.
 5. **Start**: Getting Started CTA, link to docs, GitHub button
 
 *Signature:*
-6. **Footer**: ❤️+🌀=🌈 signature, 言霊 accent, soul@liveneon.org, links
+6. **Footer**: ❤️+🌀=🌈 signature, 言霊 accent, soul@liveneon.ai, links
 
 **Layout Approach**:
 - Single column, centered content
@@ -203,7 +203,7 @@ OpenClaw users and AI enthusiasts self-select into the depth layer.
 - [ ] Meta tags for SEO (title, description, og:image)
 - [ ] Responsive at 320px, 768px, 1024px breakpoints
 
-**Commit**: `feat(neon-soul): build page structure for liveneon.org`
+**Commit**: `feat(neon-soul): build page structure for liveneon.ai`
 
 ---
 
@@ -278,7 +278,7 @@ Test: Can visitors *feel* kotodama before they read about it?
 - [ ] Architecture diagram matches getting-started guide
 - [ ] Font subsets verified (woff2 sizes match budget)
 
-**Commit**: `content(neon-soul): add copy and assets for liveneon.org`
+**Commit**: `content(neon-soul): add copy and assets for liveneon.ai`
 
 ---
 
@@ -326,7 +326,7 @@ Test: Can visitors *feel* kotodama before they read about it?
 - [ ] Lighthouse score 90+ (Performance, Accessibility, SEO)
 - [ ] Cache-busting approach implemented
 
-**Commit**: `style(neon-soul): add neon visual polish to liveneon.org`
+**Commit**: `style(neon-soul): add neon visual polish to liveneon.ai`
 
 ---
 
@@ -334,7 +334,7 @@ Test: Can visitors *feel* kotodama before they read about it?
 
 **File(s)**: `website/railway.json`, DNS settings
 
-**Purpose**: Deploy to liveneon.org via Railway.com
+**Purpose**: Deploy to liveneon.ai via Railway.com
 
 **Why Railway** (vs GitHub Pages):
 - Supports any directory structure (no `/docs` restriction)
@@ -346,14 +346,14 @@ Test: Can visitors *feel* kotodama before they read about it?
 1. Create Railway project via CLI or dashboard
 2. Configure railway.json for static site serving
 3. Deploy website/ directory
-4. Add custom domain: liveneon.org
+4. Add custom domain: liveneon.ai
 5. Configure DNS (CNAME to Railway)
 6. Verify HTTPS works
 7. Test all links and functionality
 
 **DNS Configuration** (document in README):
-- CNAME: liveneon.org → [project].up.railway.app
-- CNAME: www.liveneon.org → [project].up.railway.app
+- CNAME: liveneon.ai → [project].up.railway.app
+- CNAME: www.liveneon.ai → [project].up.railway.app
 - **www redirect**: Configure HTTP 301 redirect from www to apex domain
 
 **SEO & Meta Files**:
@@ -372,15 +372,15 @@ Test: Can visitors *feel* kotodama before they read about it?
   - LinkedIn Post Inspector
 
 **Acceptance Criteria**:
-- [ ] Site accessible at liveneon.org
+- [ ] Site accessible at liveneon.ai
 - [ ] HTTPS enabled and working
-- [ ] www.liveneon.org redirects to liveneon.org (HTTP 301)
+- [ ] www.liveneon.ai redirects to liveneon.ai (HTTP 301)
 - [ ] All internal links work
 - [ ] OG tags render correctly in social previews (verified with tools)
 - [ ] robots.txt and sitemap.xml accessible
 - [ ] Uptime monitoring configured
 
-**Commit**: `deploy(neon-soul): configure liveneon.org on Railway`
+**Commit**: `deploy(neon-soul): configure liveneon.ai on Railway`
 
 ---
 
@@ -391,22 +391,22 @@ Test: Can visitors *feel* kotodama before they read about it?
 **Purpose**: Link website from project documentation
 
 **Changes**:
-- Add liveneon.org link to README badges
+- Add liveneon.ai link to README badges
 - Update getting-started guide Resources section
 - Add website development notes to CONTRIBUTING if exists
 
 **Acceptance Criteria**:
-- [ ] README links to liveneon.org
+- [ ] README links to liveneon.ai
 - [ ] Getting-started guide references website
 - [ ] Website README documents local development
 
-**Commit**: `docs(neon-soul): add liveneon.org links to documentation`
+**Commit**: `docs(neon-soul): add liveneon.ai links to documentation`
 
 ---
 
 ## Success Criteria
 
-1. liveneon.org loads in <2s and scores 90+ on Lighthouse (Performance, Accessibility, SEO)
+1. liveneon.ai loads in <2s and scores 90+ on Lighthouse (Performance, Accessibility, SEO)
 2. Surface layer (hero) creates curiosity/recognition - invites rather than asserts
 3. Depth layer provides clear path to GitHub/getting-started
 4. Brand identity is consistent and memorable (signature visible)
@@ -436,9 +436,9 @@ Test: Can visitors *feel* kotodama before they read about it?
 |----------|----------|-------|
 | Tagline | "Identity that knows where it came from" | Per twin creative - narrative alignment, uniquely NEON-SOUL |
 | Logo | Stylized text (deferred) | Custom wordmark can come later |
-| Domain | liveneon.org | Confirmed |
+| Domain | liveneon.ai | Confirmed |
 | Analytics | Deferred | Add later if needed |
-| Email | soul@liveneon.org | Contact only, no signup form |
+| Email | soul@liveneon.ai | Contact only, no signup form |
 | Hosting | Railway.com | Supports subdirectory, auto-HTTPS |
 | Audiences | 2-layer approach | Surface (everyone) + Depth (technical) |
 | Emotional journey | Mapped | Curiosity → Understanding → Confidence → Agency → Belonging |

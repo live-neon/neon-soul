@@ -89,16 +89,36 @@ For the complete OpenClaw experience with chat integrations:
 
 ```bash
 # Clone upstream OpenClaw
-git clone https://github.com/openclaw/openclaw.git
+git clone git@github.com:openclaw/openclaw.git
 cd openclaw
 
 # Run automated setup
 ./docker-setup.sh
 ```
 
+**macOS Note**: The setup script requires bash 4+. macOS ships with bash 3.2. Install via Homebrew first:
+```bash
+brew install bash
+/opt/homebrew/bin/bash ./docker-setup.sh
+```
+
 The setup wizard configures your LLM provider and starts the gateway.
 
+**Hooks**: When prompted about hooks, consider enabling:
+- **session-memory** - Saves conversation context to memory files, giving NEON-SOUL more signals to extract
+- Skip the others for initial setup (can enable later)
+
 **Access**: http://127.0.0.1:18789/
+
+**Docker Dashboard Fix**: If you see "disconnected (1008): pairing required", Docker's NAT networking is blocking auto-approval. Fix by adding `allowInsecureAuth` to the config:
+```bash
+# Add controlUi setting
+cat ~/.openclaw/openclaw.json | jq '.gateway.controlUi = {"allowInsecureAuth": true}' > /tmp/oc.json && mv /tmp/oc.json ~/.openclaw/openclaw.json
+
+# Restart gateway
+docker compose down && docker compose up -d openclaw-gateway
+```
+Then access with the token from your config: `http://127.0.0.1:18789/#token=<YOUR_TOKEN>`
 
 See [OpenClaw Docker Documentation](https://docs.openclaw.ai/install/docker) for details.
 
@@ -487,7 +507,7 @@ npm test                                       # Run tests
 ## Resources
 
 **Project Documentation**:
-- [NEON-SOUL Website](https://liveneon.org) - Public landing page
+- [NEON-SOUL Website](https://liveneon.ai) - Public landing page
 - [NEON-SOUL README](../../README.md)
 - [Memory Data Landscape](../research/memory-data-landscape.md)
 - [ARCHITECTURE.md](../ARCHITECTURE.md)

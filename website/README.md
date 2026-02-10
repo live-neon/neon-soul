@@ -1,6 +1,6 @@
-# liveneon.org Website
+# liveneon.ai Website
 
-Static landing page for NEON-SOUL at [liveneon.org](https://liveneon.org).
+Static landing page for NEON-SOUL at [liveneon.ai](https://liveneon.ai).
 
 ## Local Development
 
@@ -67,16 +67,16 @@ Railway uses the `railway.json` configuration to serve the static site.
 ### Custom Domain Setup
 
 1. In Railway dashboard, go to project settings
-2. Add custom domain: `liveneon.org`
+2. Add custom domain: `liveneon.ai`
 3. Railway will provide a CNAME target (e.g., `your-project.up.railway.app`)
 
 ### DNS Configuration
 
 Configure these records with your domain registrar:
 
-**For apex domain (liveneon.org):**
+**For apex domain (liveneon.ai):**
 - Type: CNAME
-- Name: `@` or `liveneon.org`
+- Name: `@` or `liveneon.ai`
 - Target: `[your-project].up.railway.app`
 
 Note: Some registrars don't support CNAME on apex domains. In that case:
@@ -90,22 +90,22 @@ Note: Some registrars don't support CNAME on apex domains. In that case:
 - Target: `[your-project].up.railway.app`
 
 **www Redirect:**
-Configure HTTP 301 redirect from www.liveneon.org to liveneon.org:
+Configure HTTP 301 redirect from www.liveneon.ai to liveneon.ai:
 1. In Railway dashboard, go to your service settings
 2. Under "Custom Domains", add both domains
-3. Set the apex domain (liveneon.org) as primary
+3. Set the apex domain (liveneon.ai) as primary
 4. Railway will automatically redirect www to apex
 
 ### Verify Deployment
 
 After deployment, verify:
 
-1. **Site accessible**: https://liveneon.org
+1. **Site accessible**: https://liveneon.ai
 2. **HTTPS working**: Certificate auto-provisioned via Let's Encrypt
-3. **www redirect**: https://www.liveneon.org redirects to https://liveneon.org (HTTP 301)
+3. **www redirect**: https://www.liveneon.ai redirects to https://liveneon.ai (HTTP 301)
 4. **SEO files accessible**:
-   - https://liveneon.org/robots.txt
-   - https://liveneon.org/sitemap.xml
+   - https://liveneon.ai/robots.txt
+   - https://liveneon.ai/sitemap.xml
 
 ## Post-Deploy Checklist
 
@@ -117,17 +117,17 @@ Test how the site appears when shared on social media:
 
 1. **General preview** (OG tags):
    - Visit [opengraph.xyz](https://opengraph.xyz)
-   - Enter: `https://liveneon.org`
+   - Enter: `https://liveneon.ai`
    - Verify title, description, and image appear correctly
 
 2. **Twitter/X Card**:
    - Visit [Twitter Card Validator](https://cards-dev.twitter.com/validator)
-   - Enter: `https://liveneon.org`
+   - Enter: `https://liveneon.ai`
    - Verify large image card renders
 
 3. **LinkedIn Preview**:
    - Visit [LinkedIn Post Inspector](https://www.linkedin.com/post-inspector/)
-   - Enter: `https://liveneon.org`
+   - Enter: `https://liveneon.ai`
    - Verify preview renders correctly
 
 ### Uptime Monitoring
@@ -137,7 +137,7 @@ Set up basic uptime monitoring:
 1. **UptimeRobot** (free tier):
    - Visit [uptimerobot.com](https://uptimerobot.com)
    - Create account, add new monitor
-   - URL: `https://liveneon.org`
+   - URL: `https://liveneon.ai`
    - Check interval: 5 minutes
    - Alert contacts: your email
 
@@ -152,7 +152,7 @@ Run Lighthouse audit:
 
 ```bash
 # Using Chrome DevTools
-# 1. Open https://liveneon.org in Chrome
+# 1. Open https://liveneon.ai in Chrome
 # 2. Open DevTools (F12)
 # 3. Go to Lighthouse tab
 # 4. Run audit (Performance, Accessibility, SEO)
@@ -169,8 +169,14 @@ The site includes these SEO-related files:
 |------|---------|
 | `robots.txt` | Allows all crawlers, points to sitemap |
 | `sitemap.xml` | Single-page sitemap for search engines |
-| `assets/favicon.svg` | Browser tab icon (SVG format) |
+| `assets/favicon.svg` | Browser tab icon (SVG format, see note) |
 | JSON-LD in index.html | Organization schema for rich snippets |
+
+**Favicon Note**: We use SVG-only favicon (no raster sizes). This is an intentional decision:
+- SVG favicons are supported by all modern browsers (Chrome 80+, Firefox 41+, Safari 12+)
+- Reduces asset management overhead
+- Scales perfectly at any size
+- For legacy browser support, consider generating raster sizes from the SVG source
 
 ## File Structure
 

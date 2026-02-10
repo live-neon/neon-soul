@@ -1,8 +1,8 @@
-# robots.txt for liveneon.org
+# robots.txt for liveneon.ai
 # Allow all crawlers
 
 User-agent: *
 Allow: /
 
 # Sitemap location
-Sitemap: https://liveneon.org/sitemap.xml
+Sitemap: https://liveneon.ai/sitemap.xml

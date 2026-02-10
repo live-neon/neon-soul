@@ -174,7 +174,7 @@ export async function runReflectiveLoop(
     let centroidDrift = 0;
     let iterationConverged = false;
 
-    if (previousAxiomEmbedding && axiomSetEmbedding.length > 0) {
+    if (previousAxiomEmbedding && previousAxiomEmbedding.length > 0 && axiomSetEmbedding.length > 0) {
       const similarity = cosineSimilarity(previousAxiomEmbedding, axiomSetEmbedding);
       centroidDrift = 1 - similarity;
       iterationConverged = similarity >= convergenceThreshold;

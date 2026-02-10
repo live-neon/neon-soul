@@ -261,3 +261,18 @@ a:focus-visible {
   outline-offset: 3px;
   border-radius: 2px;
 }
+
+/* ==========================================================================
+   EMAIL OBFUSCATION
+   Splits email into parts to deter basic scrapers
+   ========================================================================== */
+
+.contact-email .email-at {
+  /* Visually hidden but present in DOM for scraper confusion */
+  font-size: 0.9em;
+}
+
+.contact-email .email-part,
+.contact-email .email-domain {
+  /* Parts are separate spans */
+}

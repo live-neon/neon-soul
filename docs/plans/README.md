@@ -6,7 +6,9 @@
 
 | Plan | Status | Description |
 |------|--------|-------------|
-| [liveneon.org Landing Page](2026-02-08-liveneon-landing-page.md) | Draft | Public website at liveneon.org |
+| [Axiom Emergence Bootstrap](2026-02-09-axiom-emergence-bootstrap.md) | Ready | Fix zero axioms via cascading thresholds |
+| [Interview CLI Integration](2026-02-09-interview-cli-integration.md) | Ready | Chat-based interview onboarding |
+| [liveneon.ai Landing Page](2026-02-08-liveneon-landing-page.md) | Draft | Public website at liveneon.ai |
 | [Ollama LLM Provider](2026-02-08-ollama-llm-provider.md) | Draft | E2E testing with real LLM |
 | [E2E Testing](2026-02-09-e2e-testing.md) | Draft | End-to-end test infrastructure |
 

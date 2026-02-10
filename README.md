@@ -1,6 +1,6 @@
 # NEON-SOUL
 
-[![Website](https://img.shields.io/badge/website-liveneon.org-00ffff)](https://liveneon.org)
+[![Website](https://img.shields.io/badge/website-liveneon.ai-00ffff)](https://liveneon.ai)
 
 **AI Identity Through Grounded Principles**
 

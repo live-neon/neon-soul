@@ -66,11 +66,6 @@
    HERO ANIMATIONS
    ========================================================================== */
 
-/* Hero heading gets subtle glow pulse */
-.hero-heading {
-  animation: glow-pulse 4s ease-in-out infinite;
-}
-
 /* Staggered fade-in for hero content */
 .hero-quote {
   opacity: 0;
