@@ -2,9 +2,12 @@
 created: 2026-02-09
 updated: 2026-02-09
 type: implementation-plan
-status: Ready
+status: Superseded
 language: typescript
 code_examples: forbidden
+superseded_by:
+  - 2026-02-09-chat-interview-integration.md
+  - 2026-02-09-landing-page-demo.md
 review_principles: |
   1. No Code: Do NOT add code examples. Plans describe WHAT/WHY, not HOW.
   2. No Hardcoding: Do NOT add values that depend on implementation.
@@ -14,6 +17,12 @@ trigger: think hard
 ---
 
 # Plan: Chat-Based Interview Onboarding + Landing Page Demo
+
+> **⚠️ SUPERSEDED**: This plan has been split into two focused plans:
+> - [`2026-02-09-chat-interview-integration.md`](2026-02-09-chat-interview-integration.md) - Chat interview functionality (Stages 0-5)
+> - [`2026-02-09-landing-page-demo.md`](2026-02-09-landing-page-demo.md) - Landing page demo (Stages 6-7b)
+>
+> Use the new plans for implementation. This file is retained for historical reference.
 
 ## Problem Statement
 
