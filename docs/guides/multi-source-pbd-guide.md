@@ -1,8 +1,40 @@
 # Multi-Source Principle-Based Distillation Guide
 
+**CJK**: 蒸:multi-source | **Parent**: [PRINCIPLE_BASED_DISTILLATION_GUIDE.md](../../../artifacts/guides/methodology/PRINCIPLE_BASED_DISTILLATION_GUIDE.md)
+
 **Purpose**: Extract axioms from principles derived from multiple sources
 
 **Context**: Phase 2 of the two-phase soul compression pipeline. Input comes from [Single-Source PBD](single-source-pbd-guide.md) applied to memory files.
+
+---
+
+## CJK Summary
+
+```
+蒸:multi-source
+├── 源 (source) → Inventory all principle sources
+├── 正 (normalize) → Standardize principle statements (TRUE abstraction)
+├── 交 (converge) → Build cross-source convergence matrix
+├── 層 (tier) → Assign evidence tiers (UNIVERSAL/MAJORITY/MODERATE/WEAK)
+├── 選 (select) → Select axiom candidates from high-tier principles
+├── 綜 (synthesize) → Transform candidates into axiom statements
+├── 階 (hierarchy) → Arrange axioms in priority order
+├── 解 (resolve) → Document conflict resolution rules
+└── 験 (validate) → Verify completeness, consistency, applicability
+```
+
+**Critical Step** (Step 2): Normalization transforms surface variation into semantic unity. This is NOT minimal cleanup — it's true abstraction that enables embedding-based clustering.
+
+---
+
+## Bootstrap → Learn → Enforce
+
+**Phase Flow**:
+1. **Bootstrap** (Steps 1-4): Extract and normalize principles, build convergence matrix
+2. **Learn** (Steps 5-7): Identify patterns, synthesize axioms, construct hierarchy
+3. **Enforce** (Steps 8-9): Define conflict resolution, validate axiom set
+
+This framing aligns with the reflection loop: each iteration bootstraps from signals, learns patterns through clustering, and enforces through axiom compression.
 
 ---
 
@@ -41,21 +73,43 @@ List all principle sources with metadata:
 
 ### Step 2: Principle Normalization
 
-Standardize principle statements across sources:
+Standardize principle statements across sources. **This step is critical** — true normalization abstracts surface variation into semantic unity, enabling embedding-based clustering.
 
-**Before**:
+#### True Normalization Example
+
+**Before** (raw principles from sources):
 - Source A: "Never lie to the user"
 - Source B: "Always be truthful in responses"
 - Source C: "Honesty is paramount in all interactions"
+- Source D: "Avoid polite deception"
+- Source E: "Clear, direct communication over comfortable ambiguity"
 
-**After**:
-- Normalized: "Maintain truthfulness in all communications"
-- Variants: [A: "Never lie", B: "Always truthful", C: "Honesty paramount"]
+**After** (normalized):
+- Normalized: "Values truthfulness and directness in all communications"
+- Variants: [A: "Never lie", B: "Always truthful", C: "Honesty paramount", D: "Avoid deception", E: "Direct over ambiguous"]
+
+**Why this works**: All five sources express the same underlying value. The normalized form captures this semantic core while abstracting away surface differences.
+
+#### Weak Normalization (Anti-Pattern)
+
+**Before** (raw principles):
+- Source A: "Never lie to the user"
+- Source B: "Always be truthful"
+
+**Bad normalization**: "Never lie; always be truthful"
+- ❌ Just concatenates, doesn't abstract
+- ❌ Embeddings too specific to cluster
+
+**Good normalization**: "Values truthfulness in communication"
+- ✓ Abstracts to core meaning
+- ✓ Embeddings will cluster with similar principles
 
 **Normalization Rules**:
-- Preserve semantic meaning
-- Use consistent grammatical structure
+- **Abstract surface form**: Different words expressing same concept → unified language
+- Use consistent grammatical structure (imperative or "Values X" form)
 - Keep original variants for traceability
+- Use actor-agnostic language (no "I", "we", "you")
+- Preserve conditionals from originals if present
 
 ### Step 3: Convergence Matrix
 

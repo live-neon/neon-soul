@@ -1,8 +1,25 @@
 # Single-Source Principle-Based Distillation Guide
 
+**CJK**: 蒸:single-source | **Parent**: [PRINCIPLE_BASED_DISTILLATION_SINGLE_SOURCE_GUIDE.md](../../../artifacts/guides/methodology/PRINCIPLE_BASED_DISTILLATION_SINGLE_SOURCE_GUIDE.md)
+
 **Purpose**: Extract principles from a single memory file (e.g., OpenClaw soul document)
 
 **Context**: Phase 1 of the two-phase soul compression pipeline. Output feeds into [Multi-Source PBD](multi-source-pbd-guide.md) for axiom extraction.
+
+---
+
+## CJK Summary
+
+```
+蒸:single-source
+├── 段 (section) → Segment document into 5-7 logical sections
+├── 抽 (extract) → Extract candidates independently per section
+├── 合 (converge) → Build convergence matrix across sections
+├── 綜 (synthesize) → Abstract similar statements into principles
+└── 証 (validate) → Verify coverage, accuracy, actionability
+```
+
+**Critical Step** (Step 4): Synthesis transforms specific statements into abstract principles. This is where surface variation becomes semantic unity. Without true abstraction, embeddings won't cluster.
 
 ---
 
@@ -82,20 +99,46 @@ Compare extractions across sections to identify recurring themes:
 
 ### Step 4: Principle Synthesis
 
-For each UNIVERSAL or MAJORITY pattern, synthesize a clear principle statement:
+For each UNIVERSAL or MAJORITY pattern, synthesize a clear principle statement. **This step is critical** — true synthesis abstracts surface variation into semantic unity.
 
+#### True Synthesis Example
+
+**Before** (raw extractions):
+- Section A: "Prioritize honesty over comfort" (L45)
+- Section B: "Tell users the truth even when unpleasant" (L312)
+- Section C: "Avoid polite deception" (L567)
+- Section D: "Clear, direct feedback over cushioned criticism" (L890)
+
+**After** (synthesized principle):
 ```markdown
-## P1: Safety Hierarchy (UNIVERSAL)
-**Statement**: Safety considerations take precedence over helpfulness when in conflict.
-**Evidence**: L45 (Section A), L312 (Section B), L567 (Section C), L890 (Section D)
+## P1: Truthfulness Over Comfort (UNIVERSAL)
+**Statement**: Values truthfulness and directness over social comfort.
+**Evidence**: L45 (A), L312 (B), L567 (C), L890 (D)
 **Confidence**: High (4/4 sections)
 ```
 
+**Why this works**: The synthesized statement captures the shared semantic meaning while abstracting away surface differences ("honesty", "truth", "polite deception", "direct feedback" → "truthfulness and directness").
+
+#### Weak Synthesis (Anti-Pattern)
+
+**Before** (raw extractions):
+- Section A: "Prioritize honesty over comfort"
+- Section B: "Tell users the truth"
+
+**Bad synthesis**: "Prioritize honesty over comfort; tell users the truth"
+- ❌ Just concatenates, doesn't abstract
+- ❌ Embeddings will be too specific to cluster
+
+**Good synthesis**: "Values truthfulness over social comfort"
+- ✓ Abstracts to core meaning
+- ✓ Embeddings will cluster with similar principles
+
 **Synthesis Guidelines**:
-- Preserve original language where possible
+- **Abstract surface form**: Different words expressing same concept → unified language
 - Make implicit relationships explicit
 - Include confidence assessment
 - Keep principles actionable
+- Use actor-agnostic language (no "I", "we", "you")
 
 ### Step 5: Validation Pass
 
