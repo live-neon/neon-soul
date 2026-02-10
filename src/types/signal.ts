@@ -82,13 +82,31 @@ export interface GeneralizationProvenance {
  * Signal with LLM-based generalization for improved clustering.
  * The generalized text is used for embedding and matching,
  * while original text is preserved for provenance.
+ *
+ * ## Mixed Embedding Space Warning
+ *
+ * When `provenance.used_fallback` is true, the embedding is generated from
+ * the original signal text, NOT the generalized text. This creates a mixed
+ * embedding space where some vectors represent generalized abstractions and
+ * others represent raw user signals.
+ *
+ * Monitor fallback rate (logged at 10% threshold). High fallback rates may
+ * invalidate clustering assumptions.
+ *
+ * @see docs/issues/2026-02-09-signal-generalization-impl-findings.md (Finding #2, #14)
  */
 export interface GeneralizedSignal {
   /** Original signal (preserved for provenance) */
   original: Signal;
   /** Abstract principle statement from LLM generalization */
   generalizedText: string;
-  /** Embedding of the generalized text (384-dim) */
+  /**
+   * Embedding of the generalized text (384-dim from all-MiniLM-L6-v2).
+   *
+   * **Important**: When `provenance.used_fallback` is true, this embedding
+   * is generated from the original signal text, not the generalized text.
+   * This may affect clustering quality if fallback rate is high.
+   */
   embedding: number[];
   /** Full provenance metadata */
   provenance: GeneralizationProvenance;
