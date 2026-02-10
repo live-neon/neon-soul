@@ -18,7 +18,7 @@
  *   - Full provenance for audit trail
  */
 
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { writeFile, readFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type {
@@ -69,7 +69,7 @@ export class InterviewFlow {
       .map((c) => c.dimension);
 
     this.session = {
-      id: uuidv4(),
+      id: randomUUID(),
       startedAt: new Date(),
       completedAt: null,
       responses: [],
@@ -254,7 +254,7 @@ export class InterviewFlow {
     const confidence = this.calculateResponseConfidence(response.text);
 
     const signal: Signal = {
-      id: uuidv4(),
+      id: randomUUID(),
       type: question.signalType,
       text: truncatedText.slice(0, 200), // Further truncate for signal text
       embedding,
@@ -283,7 +283,7 @@ export class InterviewFlow {
         const followUpTruncated = followUpResponse.text.slice(0, MAX_TEXT_LENGTH);
         const followUpEmbedding = await embed(followUpTruncated);
         signals.push({
-          id: uuidv4(),
+          id: randomUUID(),
           type: followUp.signalType,
           text: followUpTruncated.slice(0, 200),
           embedding: followUpEmbedding,
