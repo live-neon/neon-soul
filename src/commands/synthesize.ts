@@ -26,6 +26,7 @@ import { getDefaultMemoryPath, getDefaultOutputPath, resolvePath } from '../lib/
 import type { LLMProvider } from '../types/llm.js';
 import { LLMRequiredError } from '../types/llm.js';
 import { OllamaLLMProvider } from '../lib/llm-providers/ollama-provider.js';
+import { logger } from '../lib/logger.js';
 
 interface CommandOptions {
   memoryPath: string;
@@ -166,6 +167,11 @@ async function runSynthesisWithLLM(options: CommandOptions, llm: LLMProvider): P
  */
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
+
+  // Enable debug logging in verbose mode
+  if (options.verbose) {
+    logger.configure({ level: 'debug' });
+  }
 
   if (options.verbose) {
     console.log('Detecting LLM provider...');

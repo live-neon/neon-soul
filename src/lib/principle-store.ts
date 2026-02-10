@@ -10,6 +10,7 @@ import type { SoulCraftDimension } from '../types/dimensions.js';
 import type { LLMProvider } from '../types/llm.js';
 import { cosineSimilarity } from './matcher.js';
 import { classifyDimension } from './semantic-classifier.js';
+import { logger } from './logger.js';
 
 export interface PrincipleStore {
   principles: Map<string, Principle>;
@@ -139,6 +140,10 @@ export function createPrincipleStore(
         bestPrinciple = principle;
       }
     }
+
+    // Diagnostic: Log matching decision
+    const matchDecision = bestSimilarity >= similarityThreshold ? 'MATCH' : 'NO_MATCH';
+    logger.debug(`[matching] ${matchDecision}: similarity=${bestSimilarity.toFixed(3)} threshold=${similarityThreshold.toFixed(2)} signal="${signal.text.slice(0, 50)}..."`);
 
     // If similarity >= threshold, reinforce existing principle
     if (bestPrinciple && bestSimilarity >= similarityThreshold) {

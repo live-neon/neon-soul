@@ -10,6 +10,7 @@ See parent: `/docs/issues/README.md`
 
 | Issue | Status | Priority |
 |-------|--------|----------|
+| [Missing Signal Generalization Step (PBD Drift)](missing-signal-generalization-step.md) | 🔴 open | **high** |
 | [Axiom Emergence Bootstrap Twin Review](twin-review-2026-02-09-axiom-emergence-bootstrap.md) | ✅ resolved | medium |
 | [Axiom Emergence Bootstrap Code Review](code-review-2026-02-09-axiom-emergence-bootstrap.md) | ✅ resolved | **high** |
 | [Greenfield Bootstrap Mode Enforcement](greenfield-bootstrap-mode-enforcement.md) | ✅ resolved | **high** |
