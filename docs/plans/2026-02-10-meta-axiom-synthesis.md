@@ -329,6 +329,7 @@ If meta-synthesis produces poor results:
 **Plans**:
 - `docs/plans/2026-02-10-pbd-alignment.md` - Prerequisite: axiom metadata
 - `docs/plans/2026-02-10-emergence-facilitation.md` - Related: context diversity
+- `docs/plans/2026-02-10-clawhub-deployment.md` - Deployment (can proceed before this plan)
 
 **Issues**:
 - `docs/issues/2026-02-10-axiom-count-exceeds-cognitive-limit.md` - Root issue

@@ -1524,6 +1524,8 @@ All changes are additive (new optional fields). Rollback by:
   - Context diversity scoring
   - Reflexive identity cycling (downward causation)
   - Future: stigmergic memory, participatory extraction
+- `docs/plans/2026-02-10-clawhub-deployment.md` - ClawHub publication (can proceed in parallel)
+- `docs/plans/2026-02-10-meta-axiom-synthesis.md` - Cognitive load reduction (depends on this plan)
 
 **Conceptual References**:
 - Grounded theory constant comparative method (Glaser & Strauss, 1967) - methodological parallel
