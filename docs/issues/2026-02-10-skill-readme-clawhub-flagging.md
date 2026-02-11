@@ -2,7 +2,7 @@
 
 **Created**: 2026-02-10
 **Updated**: 2026-02-11
-**Status**: Open (registry metadata not propagating)
+**Status**: Open (v0.1.7 - config paths now recognized, new issues identified)
 **Priority**: Medium
 **Type**: Security Scan Response
 
@@ -15,109 +15,129 @@
 
 ## Summary
 
-ClawHub security scan regressed back to **"Suspicious (medium confidence)"** despite v0.1.6 fixes. **Root cause**: Registry metadata shows "Required config paths: none" even though SKILL.md frontmatter explicitly declares `configPaths`. This is a **ClawHub registry propagation issue**, not a SKILL.md issue.
+v0.1.7 **fixed the config paths issue** - registry now recognizes declared paths. However, scan still shows **"Suspicious (medium confidence)"** due to new issues:
+1. "No external APIs" claim is unverifiable at install time
+2. ~/.openclaw/workspace could expose unrelated sensitive data
+3. Embedding model (all-MiniLM-L6-v2) not declared as runtime requirement
 
-**VirusTotal**: Benign ✓
-**OpenClaw**: Suspicious (medium confidence) - due to metadata mismatch
+**VirusTotal**: Pending
+**OpenClaw**: Suspicious (medium confidence) - runtime verification concerns
 
 ---
 
-## Current Scan Results (2026-02-11 AM) - SUSPICIOUS
+## Current Scan Results (v0.1.7) - SUSPICIOUS
 
-| Check | Status | Issue |
+| Check | Status | Notes |
 |-------|--------|-------|
-| Purpose & Capability | ! | Registry says "Required config paths: none" but SKILL.md lists configPaths - mismatch |
-| Instruction Scope | ! | File-access scope broader than registry metadata suggests (registry missing configPaths) |
-| Install Mechanism | ✓ | Instruction-only skill, no code files, low installation risk |
-| Credentials | ℹ | No credentials requested. Discrepancy between registry and SKILL.md configPaths |
-| Persistence & Privilege | ✓ | User-invocable, writes to .neon-soul/ and SOUL.md, opt-in git commits |
+| Purpose & Capability | ✓ | Config paths now consistent with purpose |
+| Instruction Scope | ℹ | "No external APIs" unverifiable at install time; depends on agent runtime |
+| Install Mechanism | ✓ | No install spec, no code files - lowest risk |
+| Credentials | ℹ | ~/.openclaw/workspace could contain other agent state/credentials |
+| Persistence & Privilege | ✓ | User-invocable only, writes only to .neon-soul/ and SOUL.md |
 
 **Assessment**: "Suspicious (medium confidence)"
 
-**Root Cause**: ClawHub registry is not reading `configPaths` from SKILL.md frontmatter. The SKILL.md correctly declares:
-```yaml
-configPaths:
-  - memory/
-  - .neon-soul/
-  - SOUL.md
-  - ~/.openclaw/workspace
-```
-But the registry shows "Required config paths: none".
-
----
-
-## Current Issues
-
-### Issue 1: Registry Not Reading configPaths from Frontmatter - OPEN
-
-**Problem**: ClawHub registry shows "Required config paths: none" even though SKILL.md frontmatter declares:
-```yaml
-configPaths:
-  - memory/
-  - .neon-soul/
-  - SOUL.md
-  - ~/.openclaw/workspace
-```
-
-**Research Findings (2026-02-11)**:
-
-1. **`configPaths` is NOT part of the Agent Skills spec**: The [agentskills.io specification](https://agentskills.io/specification) only defines: `name`, `description`, `license`, `compatibility`, `metadata`, `allowed-tools`. There is no `configPaths` field.
-
-2. **OpenClaw metadata format**: [OpenClaw docs](https://docs.openclaw.ai/tools/skills) show metadata as nested JSON under `metadata.openclaw` with fields like `requires.env`, `requires.bins`, `primaryEnv`. No `configPaths` equivalent.
-
-3. **Security gap confirmed**: [Snyk's threat model analysis](https://snyk.io/articles/skill-md-shell-access/) notes "No standardized fields for documenting file access paths" - this is a known ecosystem gap.
-
-4. **Scanner inconsistency**: The ClawHub scanner expects `configPaths` info (it flags when missing from registry), but there's no official spec for how to declare it. The scanner may be reading from markdown body, not frontmatter.
-
-**Root Cause**: `configPaths` is a non-standard field. ClawHub scanner looks for file access declarations but the registry doesn't know how to extract them from our frontmatter format.
-
-**Solution Found (v0.1.7)**:
-
-The correct format uses nested metadata structure:
+**Progress**: Config paths metadata issue RESOLVED in v0.1.7. New format works:
 ```yaml
 metadata:
   openclaw:
     config:
-      stateDirs:          # Directories the skill accesses
+      stateDirs:
         - memory/
         - .neon-soul/
         - ~/.openclaw/workspace
     requires:
-      config:             # Config paths the skill reads
+      config:
         - memory/
         - .neon-soul/
         - SOUL.md
         - ~/.openclaw/workspace
 ```
 
-Sources:
-- [ClawHub skill-format.md](https://github.com/openclaw/clawhub/blob/main/docs/skill-format.md)
-- [ClawHub README](https://github.com/openclaw/clawhub) - shows `stateDirs` example
-- [OpenClaw docs](https://docs.openclaw.ai/tools/skills) - shows `requires` structure
-
-### Issue 2: Workspace Path in configPaths - RESOLVED (in SKILL.md)
-
-**Problem**: SKILL.md referenced `~/.openclaw/workspace` but path not in configPaths.
-
-**Fix**: Added `~/.openclaw/workspace` to configPaths array. ✓
-
-### Issue 3: Model Invocation Clarification - RESOLVED (in SKILL.md)
-
-**Problem**: `disable-model-invocation: true` but SKILL.md described embeddings/similarity.
-
-**Fix**: Added "Model Invocation Clarification" section. ✓
+**Remaining Issues** (runtime verification, not metadata):
+1. Scanner can't verify "no external APIs" claim without runtime inspection
+2. ~/.openclaw/workspace access is broad (could expose other tools' data)
+3. Embedding model dependency not formally declared
 
 ---
 
-## ClawHub Scanner Recommendations (2026-02-11)
+## Current Issues
+
+### Issue 1: Config Paths Metadata - RESOLVED (v0.1.7)
+
+**Problem**: Registry showed "Required config paths: none" despite frontmatter declaration.
+
+**Root Cause**: Top-level `configPaths` was non-standard. Correct format is nested under `metadata.openclaw`.
+
+**Fix**: v0.1.7 uses correct format:
+```yaml
+metadata:
+  openclaw:
+    config:
+      stateDirs: [memory/, .neon-soul/, ~/.openclaw/workspace]
+    requires:
+      config: [memory/, .neon-soul/, SOUL.md, ~/.openclaw/workspace]
+```
+
+**Result**: Scanner now shows ✓ for "Purpose & Capability" - paths recognized.
+
+---
+
+### Issue 2: "No External APIs" Unverifiable - NEW
+
+**Problem**: Scanner notes: "The skill will access potentially sensitive personal data... 'no external APIs' is an unverifiable claim at install time and depends on the agent runtime."
+
+**Explanation**: This is a **fundamental limitation** of instruction-based skills:
+- The skill doesn't contain code - it's just instructions
+- Whether embeddings run locally depends on the agent runtime, not the skill
+- Scanner can't verify runtime behavior at install time
+
+**Options**:
+- A) Accept this limitation (instruction-based skills can't prove runtime behavior)
+- B) Add explicit runtime requirements for embedding model
+- C) Provide verification instructions in SKILL.md
+
+---
+
+### Issue 3: Workspace Path Scope - NEW
+
+**Problem**: Scanner notes: "~/.openclaw/workspace can contain other agent state or credentials for other tools; reading it could expose unrelated sensitive data."
+
+**Explanation**: This is a **valid security concern**:
+- The workspace may contain data from other skills/tools
+- Our skill only needs its own memory/ subdirectory
+- Broad workspace access is a transparency issue
+
+**Options**:
+- A) Remove ~/.openclaw/workspace from configPaths (use relative paths only)
+- B) Document that skill only reads memory/ subdirectory within workspace
+- C) Accept broader access with clear documentation
+
+---
+
+### Issue 4: Embedding Model Not Declared - NEW
+
+**Problem**: Scanner notes: "references a specific embedding model (all-MiniLM-L6-v2) without declaring a runtime requirement"
+
+**Options**:
+- A) Add to `metadata.openclaw.requires.bins` or similar
+- B) Document as soft dependency (agent provides embeddings)
+- C) Accept - embedding is agent-provided, not skill-provided
+
+---
+
+## ClawHub Scanner Recommendations (v0.1.7)
 
 > What to consider before installing:
-> 1. **Reconcile metadata**: Registry says no config paths, but SKILL.md lists memory/, .neon-soul/, SOUL.md, and ~/.openclaw/workspace. Ask the publisher why the registry metadata omits these paths.
-> 2. **Inspect contents**: Back up and inspect memory/, SOUL.md, and ~/.openclaw/workspace. Remove secrets or sensitive data before running.
-> 3. **Use dry-run first**: Run `/neon-soul synthesize --dry-run` to see what would change; use `--diff` to review proposed edits.
-> 4. **Confirm model claims**: SKILL.md states it "does not invoke models" and embeddings are local (all-MiniLM-L6-v2). Ensure your agent supports local embeddings.
-> 5. **Check backups & rollback**: The skill creates .neon-soul/backups/; verify backups exist and understand rollback.
-> 6. **Low-risk option**: Use `--workspace` to point to a safe/isolated directory until you verify behavior.
+> 1. **Inspect contents**: Ensure memory/ and ~/.openclaw/workspace don't contain unrelated secrets or other skills' tokens.
+> 2. **Use dry-run first**: Run `/neon-soul synthesize --dry-run` to preview outputs without writes.
+> 3. **Verify local embeddings**: Confirm your agent provides local embedding support (all-MiniLM-L6-v2) and that 'no external APIs' is true in your environment.
+> 4. **Git auto-commit caution**: If enabled later, verify what will be committed and that no secrets are included.
+> 5. **Workspace isolation**: If uncomfortable with workspace access, restrict skill to a sanitized workspace directory.
+>
+> Additional info that would improve assessment:
+> - Runtime code demonstrating where embeddings run (local vs remote)
+> - Explicit scoping limiting reads to dedicated memory/ directory
 
 ---
 
@@ -133,15 +153,27 @@ Sources:
 | P2 | F-4 | Bump version after fixes | ✅ resolved (v0.1.6) |
 | P2 | F-5 | Re-publish and verify scan passes | ❌ scan still suspicious |
 
-### New Action Items
+### Resolved Action Items
 
 **F-6**: ✅ Research completed - found correct format is `metadata.openclaw.config.stateDirs`
 
-**F-7**: ✅ Implemented in v0.1.7 - using nested metadata structure:
-- `metadata.openclaw.config.stateDirs` for directories
-- `metadata.openclaw.requires.config` for config paths
+**F-7**: ✅ Implemented in v0.1.7 - config paths now recognized by scanner
 
-**F-8**: 🔴 Publish v0.1.7 and verify scan passes
+**F-8**: ✅ Published v0.1.7 to ClawHub (npm pending auth)
+
+### New Action Items (v0.1.8)
+
+**F-9**: Decide on workspace path scope:
+- Option A: Remove ~/.openclaw/workspace, use relative paths only
+- Option B: Keep but document scope limitation in SKILL.md
+
+**F-10**: Decide on embedding model declaration:
+- Option A: Add to requires (but it's agent-provided, not installable)
+- Option B: Document as "agent must provide" in compatibility field
+
+**F-11**: Consider adding verification instructions:
+- How users can verify embeddings run locally
+- How to check no network calls are made
 
 ### Previous Fixes Applied (v0.1.6)
 
