@@ -360,7 +360,7 @@ npm install && npm run build
 
 **Phase**: ✅ Production Ready (All Phases Complete)
 
-**Tests**: 143/143 passing | **Code Reviews**: 4 rounds (N=2 cross-architecture)
+**Version**: 0.1.6 | **Tests**: 286/295 passing | **Code Reviews**: 4 rounds (N=2 cross-architecture)
 
 ### Implementation Complete
 
@@ -372,7 +372,7 @@ npm install && npm run build
 - [x] **Phase 4**: OpenClaw skill integration
   - [x] All 5 commands: synthesize, status, rollback, audit, trace
   - [x] Skill entry point with LLM context forwarding
-  - [x] E2E tests (23 tests) + integration tests (120 tests)
+  - [x] E2E tests + integration tests (286 tests across 23 test files)
   - [x] Safety rails: dry-run, auto-backup, --force confirmation
   - [x] Path validation (traversal protection)
   - [x] Symlink detection (security hardening)
