@@ -422,3 +422,48 @@ export function createFailingMockLLM(errorMessage: string = 'Mock LLM error'): M
   };
 }
 
+/**
+ * Create a mock LLM for tension detection testing.
+ * Detects tensions when axiom pairs contain conflicting keywords.
+ */
+export function createTensionDetectorMockLLM(): MockLLMProvider {
+  const baseMock = createMockLLM();
+
+  return {
+    ...baseMock,
+    async generate(prompt: string): Promise<GenerationResult> {
+      // Extract value1 and value2 from prompt
+      const value1Match = prompt.match(/<value1>([\s\S]*?)<\/value1>/);
+      const value2Match = prompt.match(/<value2>([\s\S]*?)<\/value2>/);
+
+      const value1 = value1Match?.[1]?.toLowerCase() ?? '';
+      const value2 = value2Match?.[1]?.toLowerCase() ?? '';
+
+      // Check for known tension patterns
+      const tensionPatterns = [
+        { word1: 'honesty', word2: 'kindness' },
+        { word1: 'truth', word2: 'kindness' },
+        { word1: 'honesty', word2: 'lie' },
+        { word1: 'efficiency', word2: 'thoroughness' },
+        { word1: 'speed', word2: 'quality' },
+        { word1: 'freedom', word2: 'structure' },
+      ];
+
+      for (const pattern of tensionPatterns) {
+        const hasPattern =
+          (value1.includes(pattern.word1) && value2.includes(pattern.word2)) ||
+          (value1.includes(pattern.word2) && value2.includes(pattern.word1));
+
+        if (hasPattern) {
+          return {
+            text: `These values create a tension: one prioritizes ${pattern.word1} while the other prioritizes ${pattern.word2}.`,
+          };
+        }
+      }
+
+      // No tension detected
+      return { text: 'none' };
+    },
+  };
+}
+
