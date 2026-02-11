@@ -149,6 +149,34 @@ const ENABLE_META_SYNTHESIS = process.env.NEON_SOUL_SKIP_META_SYNTHESIS !== 'tru
 
 **Estimated scope**: ~40 lines
 
+### Stage 4.5: Notation Format Improvement
+
+**Files**: `src/lib/compressor.ts` (or extract to `src/lib/notation-generator.ts`)
+
+**Issue**: `docs/issues/2026-02-10-notation-format-inconsistency.md`
+
+Current `generateNotatedForm()` produces inconsistent output:
+- Pinyin instead of CJK characters
+- Cryptic emoji combinations
+- Over-abbreviated text
+
+**Tasks**:
+- [ ] Strengthen notation prompt with explicit format rules
+- [ ] Add `isValidNotation()` validation function
+- [ ] Add self-healing retry loop (same pattern as classifiers)
+- [ ] Reject pinyin/romanization patterns
+- [ ] Ensure minimum clarity in output
+
+**Prompt improvements**:
+```typescript
+Rules:
+- Emoji: Single emoji (🎯💎🛡️💡🌱🤝)
+- CJK: Single Chinese/Japanese character - NEVER pinyin
+- Relationship: Full words, not abbreviations (< 30 chars)
+```
+
+**Estimated scope**: ~60 lines
+
 ### Stage 5: Testing
 
 **Files**: `src/lib/__tests__/meta-synthesizer.test.ts`
@@ -224,6 +252,8 @@ Same as current output with 79 axioms.
 3. ✅ Feature can be disabled via env var
 4. ✅ SOUL.md is more cognitively manageable
 5. ✅ No regression when feature is disabled
+6. ✅ No pinyin/romanization in notation (Stage 4.5)
+7. ✅ Consistent notation format across all axioms (Stage 4.5)
 
 ---
 
@@ -249,6 +279,7 @@ Same as current output with 79 axioms.
 ## Cross-References
 
 - **Issue**: `docs/issues/2026-02-10-axiom-count-exceeds-cognitive-limit.md`
+- **Issue (Stage 4.5)**: `docs/issues/2026-02-10-notation-format-inconsistency.md`
 - **Related**: `docs/issues/2026-02-10-llm-classification-failures.md` (LLM patterns)
 - **Code**: `src/lib/compressor.ts` (current axiom synthesis)
 
