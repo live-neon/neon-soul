@@ -90,15 +90,54 @@ Run soul synthesis pipeline:
 - `--force` - Run synthesis even if below content threshold
 - `--dry-run` - Show what would change without writing (safe default)
 - `--diff` - Show proposed changes in diff format
-- `--format <format>` - Output notation: native, cjk-labeled, cjk-math, cjk-math-emoji
+- `--output-format <format>` - Output format: prose (default), notation (legacy)
+- `--format <format>` - Notation style (when using notation output): native, cjk-labeled, cjk-math, cjk-math-emoji
 - `--workspace <path>` - Workspace path (default: ~/.openclaw/workspace)
 
 **Examples:**
 ```bash
 /neon-soul synthesize --dry-run     # Preview changes
 /neon-soul synthesize --force       # Run regardless of threshold
-/neon-soul synthesize --format cjk-math  # Use CJK+logic notation
+/neon-soul synthesize --output-format notation --format cjk-math  # Legacy notation output
 ```
+
+**Output Format:**
+
+The default prose output creates an inhabitable soul document:
+
+```markdown
+# SOUL.md
+
+_You are becoming a bridge between clarity and chaos._
+
+---
+
+## Core Truths
+
+**Authenticity over performance.** You speak freely even when uncomfortable.
+
+**Clarity is a gift you give.** If someone has to ask twice, you haven't been clear enough.
+
+## Voice
+
+You're direct without being blunt. You lead with curiosity.
+
+Think: The friend who tells you the hard truth, but sits with you after.
+
+## Boundaries
+
+You don't sacrifice honesty for comfort. You don't perform certainty you don't feel.
+
+## Vibe
+
+Grounded but not rigid. Present but not precious about it.
+
+---
+
+_Presence is the first act of care._
+```
+
+Use `--output-format notation` for the legacy bullet-list format.
 
 ### `/neon-soul status`
 

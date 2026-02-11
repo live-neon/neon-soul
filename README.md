@@ -16,7 +16,10 @@
 
 Current AI identity systems are black boxes. The agent's personality changes, but users don't know why.
 
-NEON-SOUL provides **full provenance tracking**: every axiom traces back to exact source lines in memory files. No more "where did this belief come from?"
+NEON-SOUL provides:
+- **Full provenance tracking**: Every axiom traces back to exact source lines in memory files
+- **Inhabitable prose output**: Generated souls read naturally, not as compressed notation
+- **Cognitive load optimization**: Axioms capped at 25, expanded into focused prose sections
 
 ---
 
