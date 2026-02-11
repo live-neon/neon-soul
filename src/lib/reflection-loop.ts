@@ -25,10 +25,11 @@ import { logger } from './logger.js';
 
 /**
  * Synthesis configuration.
+ *
+ * Note: axiomNThreshold was removed (I-4 fix) - the compressor uses
+ * fixed cascading thresholds (3/2/1). See compressPrinciplesWithCascade().
  */
 export interface ReflectiveLoopConfig {
-  /** N-count threshold for axiom promotion */
-  axiomNThreshold: number;
   /** Similarity threshold for principle matching */
   principleThreshold: number;
   /** Progress callback (called once after synthesis completes) */
@@ -43,7 +44,6 @@ export interface ReflectiveLoopConfig {
  * @see docs/issues/2026-02-10-generalized-signal-threshold-gap.md
  */
 export const DEFAULT_REFLECTIVE_CONFIG: ReflectiveLoopConfig = {
-  axiomNThreshold: 3,
   principleThreshold: 0.75,
 };
 
