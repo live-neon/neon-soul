@@ -2,8 +2,13 @@
  * Principle types - intermediate stage between signals and axioms.
  */
 
-import type { SignalSource, GeneralizationProvenance } from './signal.js';
+import type {
+  SignalSource,
+  GeneralizationProvenance,
+  SignalStance,
+} from './signal.js';
 import type { SoulCraftDimension } from './dimensions.js';
+import type { ArtifactProvenance } from './provenance.js';
 
 export interface PrincipleProvenance {
   signals: Array<{
@@ -12,6 +17,16 @@ export interface PrincipleProvenance {
     source: SignalSource;
     /** Original signal text (preserved for voice) */
     original_text?: string;
+    /**
+     * C-2 FIX: Persist stance for anti-echo-chamber checks.
+     * Required for Stage 15 canPromote() to check questioning stance.
+     */
+    stance?: SignalStance;
+    /**
+     * C-2 FIX: Persist provenance for anti-echo-chamber checks.
+     * Required for Stage 15 canPromote() to check external provenance.
+     */
+    provenance?: ArtifactProvenance;
   }>;
   merged_at: string; // ISO timestamp
   /** Generalization metadata for the principle text */
