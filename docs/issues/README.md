@@ -48,6 +48,7 @@ See parent: `/docs/issues/README.md`
 | [Inhabitable Soul Output Code Review Findings](2026-02-10-inhabitable-soul-output-code-review-findings.md) | ✅ resolved | **high** |
 | [Inhabitable Soul Output Twin Review Findings](2026-02-10-inhabitable-soul-output-twin-review-findings.md) | ✅ resolved | medium |
 | [ClawHub Security Scan Findings](2026-02-10-skill-readme-clawhub-flagging.md) | ✅ resolved | medium |
+| [PBD Alignment Code Review Findings](2026-02-10-pbd-alignment-code-review-findings.md) | 🔴 open | **high** |
 
 ---
 
