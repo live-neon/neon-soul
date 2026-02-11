@@ -985,10 +985,23 @@ All changes are additive (new optional fields). Rollback by:
 - Research review - identified "false soul" problem (signal source classification)
 - Both reviews - identified cycle management gap independently
 
+**Research Foundation**:
+- `docs/research/emergence-research-neon-soul.md` - Emergence theory grounding
+  - Stage 12 (Signal Source) addresses "false soul" problem from Recommendation 2 (Edge of Chaos)
+  - Stage 13 (Cycle Management) implements Recommendation 5 (Temporal Dynamics)
+  - "Observer vs Facilitator" distinction: this plan improves observation; emergence facilitation plan adds facilitation
+
+**Related Plans**:
+- `docs/plans/2026-02-10-emergence-facilitation.md` - Phase 2 emergence work (depends on this plan)
+  - Context diversity scoring
+  - Reflexive identity cycling (downward causation)
+  - Future: stigmergic memory, participatory extraction
+
 **Conceptual References**:
 - Grounded theory constant comparative method (Glaser & Strauss, 1967) - methodological parallel
 - Concept drift literature (Gama et al., 2014) - stability-plasticity dilemma for cycle management
 - Intercoder reliability research - single-coder bias concern for LLM-automated extraction
+- Emergence literature (Kauffman 1995, Takata et al. 2024) - conditions for identity emergence
 
 ---
 
