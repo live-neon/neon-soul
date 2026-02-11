@@ -12,7 +12,13 @@
 
 > **Compression is a multiplier, not minimization.**
 >
-> A 7:1 compression ratio means your soul can hold 7x more wisdom in the same token budget. Over time, the soul grows denser and richer.
+> Compression happens at the axiom layer: thousands of memory tokens distill to 15-25 core axioms (~7:1 ratio). The axiom store grows denser over time.
+
+The output format is separate from compression:
+- **Notation format**: Compact CJK/emoji bullets (~100 tokens) - for storage and debugging
+- **Prose format**: Inhabitable language (~200-500 words) - for agents to embody
+
+Both formats derive from the same compressed axiom layer. Prose is larger but usable; the underlying compression benefit is preserved.
 
 Current AI identity systems are black boxes. The agent's personality changes, but users don't know why.
 

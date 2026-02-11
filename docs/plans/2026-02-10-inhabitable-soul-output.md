@@ -293,6 +293,31 @@ Four sections, not six. Fewer sections = each one is richer. "Relationships" and
 
 ---
 
+## Compression vs Presentation
+
+**Important clarification**: This plan does NOT reduce compression — it changes presentation.
+
+```
+Memory (thousands of tokens)
+    ↓  [7:1 compression]
+Axioms (15-25 compressed)     ← Compression layer (preserved)
+    ↓  [expansion for usability]
+Prose (200-500 words)         ← Presentation layer (new)
+```
+
+**The compression benefit is preserved:**
+- Memory → Axioms: ~7:1 ratio (unchanged)
+- Axiom store holds dense, provenance-tracked identity
+- Over time, the axiom layer grows richer without growing larger
+
+**The output format is configurable:**
+- `prose` (default): Inhabitable language for agents to embody (~200-500 words)
+- `notation`: Compact CJK/emoji bullets for storage/debugging (~100 tokens)
+
+Both formats derive from the same compressed axiom layer. Prose is larger but usable; notation is compact but uninhabitable. The underlying compression benefit (dense axiom store) remains regardless of output format.
+
+---
+
 ## Verification
 
 Run synthesis against Parish's memory. The output passes if:
@@ -338,5 +363,6 @@ Four stages, four commits, ~530 lines total.
 
 ## Approval
 
-- [ ] Plan reviewed
-- [ ] Ready to implement
+- [x] Plan reviewed
+- [x] Ready to implement
+- [x] Implementation complete (2026-02-10)
