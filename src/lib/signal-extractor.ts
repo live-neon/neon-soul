@@ -16,6 +16,8 @@ import type { MemoryFile } from './memory-walker.js';
 import {
   classifyDimension as semanticClassifyDimension,
   classifySignalType as semanticClassifySignalType,
+  classifyStance as semanticClassifyStance,
+  classifyImportance as semanticClassifyImportance,
 } from './semantic-classifier.js';
 
 export interface ExtractionConfig {
@@ -188,10 +190,13 @@ export async function extractSignalsFromContent(
     const batch = confirmedSignals.slice(i, i + BATCH_SIZE);
     const batchResults = await Promise.all(
       batch.map(async ({ candidate, detection }) => {
-        // Parallelize dimension, signalType, and embedding (independent operations)
-        const [dimension, signalType, embedding] = await Promise.all([
+        // Parallelize dimension, signalType, stance, importance, and embedding (independent operations)
+        // PBD alignment: Added stance and importance classification (Stage 2 & 3)
+        const [dimension, signalType, stance, importance, embedding] = await Promise.all([
           semanticClassifyDimension(llm, candidate.text),
           semanticClassifySignalType(llm, candidate.text),
+          semanticClassifyStance(llm, candidate.text),
+          semanticClassifyImportance(llm, candidate.text),
           embed(candidate.text),
         ]);
 
@@ -209,6 +214,8 @@ export async function extractSignalsFromContent(
           embedding,
           source: signalSource,
           dimension,
+          stance, // PBD Stage 2
+          importance, // PBD Stage 3
         };
       })
     );
