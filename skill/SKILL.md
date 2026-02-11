@@ -1,5 +1,6 @@
 ---
 name: NEON-SOUL
+version: 0.1.2
 description: AI Identity Through Grounded Principles - synthesize your soul from memory with semantic compression.
 homepage: https://liveneon.ai
 user-invocable: true
@@ -16,6 +17,35 @@ tags:
 # NEON-SOUL
 
 AI Identity Through Grounded Principles - soul synthesis with semantic compression.
+
+---
+
+## How This Works
+
+NEON-SOUL is an **instruction-based skill** - there is no binary or CLI to install. The `/neon-soul` commands below are interpreted by your AI agent (Claude Code, OpenClaw, etc.) which follows the instructions in this document.
+
+**What happens when you run a command:**
+1. You type `/neon-soul synthesize` in your agent chat
+2. Your agent reads this SKILL.md and follows the instructions
+3. The agent uses its built-in capabilities to read files, call LLMs, and write output
+
+**No external code execution** - the skill is pure instructions that your agent interprets.
+
+---
+
+## Data Access
+
+**What this skill reads:**
+- `memory/` directory (diary, preferences, reflections)
+- Existing `SOUL.md` if present
+- `.neon-soul/` state directory if present
+
+**What this skill writes:**
+- `SOUL.md` - your synthesized identity document
+- `.neon-soul/backups/` - automatic backups before changes
+- `.neon-soul/state.json` - synthesis state tracking
+
+**Git integration** (opt-in): If your workspace is a git repo AND you have git configured, the skill MAY auto-commit changes. This uses your existing git credentials - no credentials are requested or stored by the skill.
 
 ---
 
@@ -180,9 +210,10 @@ Your soul documents your identity. Changes should be deliberate, reversible, and
 **How we protect you:**
 - **Auto-backup**: Backups created before every write (`.neon-soul/backups/`)
 - **Dry-run default**: Use `--dry-run` to preview before committing
+- **Require --force**: Writes only happen with explicit `--force` flag
 - **Rollback**: Restore any previous state with `/neon-soul rollback`
 - **Provenance**: Full chain from axiom → principles → source signals
-- **Git integration**: Auto-commit if workspace is a repo
+- **Git integration** (opt-in): Only commits if workspace is a git repo with configured credentials
 
 ---
 
@@ -202,17 +233,22 @@ NEON-SOUL organizes identity across 7 SoulCraft dimensions:
 
 ---
 
-## Triggers
+## Triggers (Optional)
 
-### Content Threshold (cron)
+NEON-SOUL does NOT run automatically by default. All commands require explicit user invocation.
 
-Runs automatically when new memory content exceeds threshold (default: 2000 chars).
+### Manual (Default)
+Run `/neon-soul synthesize` when you want to update your soul.
 
-Configured in OpenClaw cron:
+### OpenClaw Cron (Optional)
+OpenClaw users can optionally configure scheduled runs:
 ```yaml
+# Example OpenClaw cron config (not enabled by default)
 schedule: "0 * * * *"  # Hourly check
 condition: "shouldRunSynthesis()"
 ```
+
+**Important:** Even with cron enabled, synthesis respects `--dry-run` mode. Configure with `--force` only after reviewing dry-run output.
 
 ---
 
