@@ -348,3 +348,41 @@ Every axiom traces to source:
 Query provenance:
 - Quick lookup: `/neon-soul trace <axiom-id>`
 - Full exploration: `/neon-soul audit <axiom-id>`
+
+---
+
+## Troubleshooting
+
+### Why does my output have bullet lists instead of prose?
+
+When prose generation fails, NEON-SOUL falls back to bullet lists of native axiom text. This preserves your data while signaling that expansion didn't complete.
+
+**Common causes:**
+- **LLM provider not available**: Prose expansion requires an LLM. Check your configuration.
+- **Validation failures**: The LLM output didn't match expected format (retried once, then fell back).
+- **Network timeout**: Local LLM inference can be slow; generation may have timed out.
+
+**How to check:**
+- Enable debug logging: `NEON_SOUL_DEBUG=1 /neon-soul synthesize --force`
+- Look for `[prose-expander]` log lines indicating validation or generation failures
+
+**What to try:**
+- **Regenerate**: Run synthesis again. LLM output varies; a second attempt often succeeds.
+- **Check LLM health**: If using Ollama, verify it's running: `curl http://localhost:11434/api/tags`
+- **Use notation format**: If prose keeps failing, use `--output-format notation` for reliable output.
+
+### Why is my essence statement missing?
+
+The essence statement (the italicized line at the top) only appears when LLM extraction succeeds. If missing:
+- Your LLM provider may not be configured
+- Extraction validation failed (trait lists are rejected)
+- Network error during generation
+
+The soul is still valid without it. Run synthesis again to retry extraction.
+
+### Why did an axiom get placed in a different dimension than expected?
+
+Dimension classification uses semantic analysis. If results seem wrong:
+- Check the axiom's source signals (`/neon-soul audit <axiom-id>`)
+- The LLM classifier uses the axiom's native text, which may have different semantic weight than you expect
+- Unknown dimensions default to `vibe` (logged with `NEON_SOUL_DEBUG=1`)

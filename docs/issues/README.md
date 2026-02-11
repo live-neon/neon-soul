@@ -45,7 +45,8 @@ See parent: `/docs/issues/README.md`
 | [Post-Deployment Version Fixes](2026-02-10-post-deployment-version-fixes.md) | ✅ resolved | medium |
 | [Skill Publish Workflow Improvements](2026-02-10-skill-publish-workflow-improvements.md) | ✅ resolved | low |
 | [SKILL.md LLM Wording False Positive](2026-02-10-skillmd-llm-wording-false-positive.md) | 🔴 open | medium |
-| [Inhabitable Soul Output Code Review Findings](2026-02-10-inhabitable-soul-output-code-review-findings.md) | 🔴 open | **high** |
+| [Inhabitable Soul Output Code Review Findings](2026-02-10-inhabitable-soul-output-code-review-findings.md) | ✅ resolved | **high** |
+| [Inhabitable Soul Output Twin Review Findings](2026-02-10-inhabitable-soul-output-twin-review-findings.md) | ✅ resolved | medium |
 | [ClawHub Security Scan Findings](2026-02-10-skill-readme-clawhub-flagging.md) | ✅ resolved | medium |
 
 ---
