@@ -31,12 +31,34 @@ export interface PrincipleStore {
   getPrinciplesAboveN(threshold: number): Principle[];
   /** Update similarity threshold for future signal matching (N-counts preserved) */
   setThreshold(threshold: number): void;
+  /**
+   * PBD Stage 6: Get signals that didn't cluster to any principle.
+   * These are signals where bestSimilarityToExisting < threshold.
+   */
+  getOrphanedSignals(): OrphanedSignal[];
 }
 
 export interface AddSignalResult {
   action: 'created' | 'reinforced' | 'skipped';
   principleId: string;
   similarity: number;
+  /**
+   * M-1 FIX: Best similarity to ANY existing principle (for orphan tracking).
+   * When action='created' and this is below threshold, the signal is orphaned.
+   */
+  bestSimilarityToExisting: number;
+}
+
+/**
+ * PBD Stage 6: Orphaned signal with context about why it didn't cluster.
+ */
+export interface OrphanedSignal {
+  /** Original signal that didn't cluster */
+  signal: Signal;
+  /** Best similarity achieved (below threshold) */
+  bestSimilarity: number;
+  /** The principle it created (single-signal principle) */
+  principleId: string;
 }
 
 /**
@@ -94,6 +116,9 @@ export function createPrincipleStore(
   // Stage 1b: Track processed signal IDs to prevent duplicates
   const processedSignalIds = new Set<string>();
 
+  // PBD Stage 6: Track orphaned signals (didn't cluster to existing principle)
+  const orphanedSignals: OrphanedSignal[] = [];
+
   /**
    * Update similarity threshold for future signal matching.
    * Existing principles and their N-counts are preserved.
@@ -149,7 +174,9 @@ export function createPrincipleStore(
       };
 
       principles.set(principleId, principle);
-      return { action: 'created', principleId, similarity: 1.0 };
+
+      // PBD Stage 6: Bootstrap is not an orphan (no existing principles to compare to)
+      return { action: 'created', principleId, similarity: 1.0, bestSimilarityToExisting: -1 };
     }
 
     // Find best match among existing principles
@@ -205,6 +232,7 @@ export function createPrincipleStore(
         action: 'reinforced',
         principleId: bestPrinciple.id,
         similarity: bestSimilarity,
+        bestSimilarityToExisting: bestSimilarity, // PBD Stage 6
       };
     }
 
@@ -250,7 +278,18 @@ export function createPrincipleStore(
     };
 
     principles.set(principleId, principle);
-    return { action: 'created', principleId, similarity: bestSimilarity };
+
+    // PBD Stage 6: Track as orphan if similarity was below threshold
+    if (bestSimilarity < similarityThreshold) {
+      orphanedSignals.push({
+        signal,
+        bestSimilarity,
+        principleId,
+      });
+      logger.debug(`[orphan] Signal ${signal.id} is orphaned (best similarity: ${bestSimilarity.toFixed(3)} < threshold: ${similarityThreshold})`);
+    }
+
+    return { action: 'created', principleId, similarity: bestSimilarity, bestSimilarityToExisting: bestSimilarity };
   }
 
   /**
@@ -269,7 +308,7 @@ export function createPrincipleStore(
     // Stage 1b: Check for duplicate signal ID
     if (processedSignalIds.has(signal.id)) {
       logger.warn(`[principle-store] Duplicate signal ID detected: ${signal.id} - skipping`);
-      return { action: 'skipped', principleId: '', similarity: 0 };
+      return { action: 'skipped', principleId: '', similarity: 0, bestSimilarityToExisting: -1 };
     }
     // Note: processedSignalIds.add() moved to after async operations complete (I-3 fix)
 
@@ -318,7 +357,9 @@ export function createPrincipleStore(
 
       principles.set(principleId, principle);
       processedSignalIds.add(signal.id); // I-3: Add after successful completion
-      return { action: 'created', principleId, similarity: 1.0 };
+
+      // PBD Stage 6: Bootstrap is not an orphan (no existing principles to compare to)
+      return { action: 'created', principleId, similarity: 1.0, bestSimilarityToExisting: -1 };
     }
 
     // Find best match among existing principles (using generalized embedding)
@@ -376,6 +417,7 @@ export function createPrincipleStore(
         action: 'reinforced',
         principleId: bestPrinciple.id,
         similarity: bestSimilarity,
+        bestSimilarityToExisting: bestSimilarity, // PBD Stage 6
       };
     }
 
@@ -423,7 +465,25 @@ export function createPrincipleStore(
 
     principles.set(principleId, principle);
     processedSignalIds.add(signal.id); // I-3: Add after successful completion
-    return { action: 'created', principleId, similarity: bestSimilarity };
+
+    // PBD Stage 6: Track as orphan if similarity was below threshold
+    if (bestSimilarity < similarityThreshold) {
+      orphanedSignals.push({
+        signal,
+        bestSimilarity,
+        principleId,
+      });
+      logger.debug(`[orphan] Generalized signal ${signal.id} is orphaned (best similarity: ${bestSimilarity.toFixed(3)} < threshold: ${similarityThreshold})`);
+    }
+
+    return { action: 'created', principleId, similarity: bestSimilarity, bestSimilarityToExisting: bestSimilarity };
+  }
+
+  /**
+   * PBD Stage 6: Get signals that didn't cluster to any principle.
+   */
+  function getOrphanedSignals(): OrphanedSignal[] {
+    return [...orphanedSignals];
   }
 
   function getPrinciples(): Principle[] {
@@ -441,5 +501,6 @@ export function createPrincipleStore(
     getPrinciples,
     getPrinciplesAboveN,
     setThreshold,
+    getOrphanedSignals, // PBD Stage 6
   };
 }
