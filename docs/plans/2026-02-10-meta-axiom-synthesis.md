@@ -1,9 +1,10 @@
 # Plan: LLM Meta-Axiom Synthesis
 
 **Created**: 2026-02-10
-**Status**: Draft
+**Status**: Ready
 **Priority**: Medium
 **Type**: Feature
+**Depends On**: `docs/plans/2026-02-10-pbd-alignment.md` (axiom metadata required)
 **Related Issue**: `docs/issues/2026-02-10-axiom-count-exceeds-cognitive-limit.md`
 
 ---
@@ -100,6 +101,44 @@ const ENABLE_META_SYNTHESIS = process.env.NEON_SOUL_SKIP_META_SYNTHESIS !== 'tru
 
 **Default**: Enabled (meta-synthesis runs)
 **Disable**: `NEON_SOUL_SKIP_META_SYNTHESIS=true`
+
+---
+
+## PBD Metadata Aggregation
+
+Meta-axioms inherit metadata from source axioms (requires PBD alignment plan completion):
+
+| Source Metadata | Aggregation Rule |
+|-----------------|------------------|
+| Importance | Majority vote, weighted by N-count |
+| Centrality | Highest centrality among sources |
+| Tensions | Collect all inter-axiom tensions as "internal tensions" |
+| Provenance | Count distinct provenance types |
+
+**Extended MetaAxiom interface**:
+
+```typescript
+interface MetaAxiom {
+  // ... base fields from Design section ...
+
+  /** Aggregated importance (weighted by source axiom importance) */
+  importance: SignalImportance;
+
+  /** Centrality derived from source axioms */
+  centrality: 'foundational' | 'core' | 'supporting';
+
+  /** Internal tensions within this meta-axiom's source axioms */
+  internalTensions?: string[];
+
+  /** Provenance diversity of source axioms */
+  provenanceDiversity: number;
+}
+```
+
+**Synthesis prompt enhancement**:
+- Weight foundational/core axioms higher in synthesis
+- Note tensions between axioms in the group
+- Flag low provenance diversity (< 2 types) in output
 
 ---
 
@@ -235,22 +274,68 @@ Same as current output with 79 axioms.
 | Loss of important nuance | Keep full axiom list in provenance |
 | Increased latency | Only 7 LLM calls (one per dimension) |
 | Inconsistent output | Use structured prompt, parse strictly |
+| PBD metadata missing | Graceful degradation: synthesize without metadata, add TODO |
+
+---
+
+## Verification
+
+```bash
+# Run meta-synthesis with dry-run
+npm run synthesize -- --dry-run --verbose
+
+# Verify meta-axiom count in target range (10-15)
+grep -A5 "Meta-Axioms" output/SOUL.md
+
+# Test feature flag disable
+NEON_SOUL_SKIP_META_SYNTHESIS=true npm run synthesize -- --dry-run
+# Should produce 79 axioms, no meta-axioms
+
+# Run unit tests
+npm test src/lib/__tests__/meta-synthesizer.test.ts
+
+# Verify PBD metadata flows through (after PBD alignment)
+grep "provenanceDiversity" output/SOUL.md
+```
+
+---
+
+## Rollback Plan
+
+If meta-synthesis produces poor results:
+
+1. **Immediate**: Disable via `NEON_SOUL_SKIP_META_SYNTHESIS=true`
+2. **Revert**: All changes are additive; revert commits in reverse order
+3. **Fallback**: Original 79-axiom output remains available
 
 ---
 
 ## Dependencies
 
+**Required before implementation**:
+- `docs/plans/2026-02-10-pbd-alignment.md` - Axiom metadata (stance, importance, tensions, provenance)
+
+**Code dependencies**:
 - Existing `compressor.ts` axiom generation
 - `ollama-provider.ts` with self-healing retry
 - `soul-generator.ts` for output formatting
+
+**Estimated Total Scope**: ~370 new lines (30 + 150 + 50 + 40 + 100)
 
 ---
 
 ## Cross-References
 
-- **Issue**: `docs/issues/2026-02-10-axiom-count-exceeds-cognitive-limit.md`
-- **Related**: `docs/issues/2026-02-10-llm-classification-failures.md` (LLM patterns)
-- **Code**: `src/lib/compressor.ts` (current axiom synthesis)
+**Plans**:
+- `docs/plans/2026-02-10-pbd-alignment.md` - Prerequisite: axiom metadata
+- `docs/plans/2026-02-10-emergence-facilitation.md` - Related: context diversity
+
+**Issues**:
+- `docs/issues/2026-02-10-axiom-count-exceeds-cognitive-limit.md` - Root issue
+- `docs/issues/2026-02-10-llm-classification-failures.md` - LLM patterns
+
+**Code**:
+- `src/lib/compressor.ts` - Current axiom synthesis
 
 ---
 
