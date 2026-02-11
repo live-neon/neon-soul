@@ -59,13 +59,23 @@ configPaths:
   - ~/.openclaw/workspace
 ```
 
-**Root Cause Hypotheses**:
-1. ClawHub doesn't parse `configPaths` from frontmatter (expects different field name?)
-2. ClawHub expects a different YAML format for the array
-3. ClawHub bug - frontmatter not being indexed into registry metadata
-4. The `clawhub publish` command doesn't extract frontmatter fields
+**Research Findings (2026-02-11)**:
 
-**Investigation Needed**: Check ClawHub documentation for required metadata field names and formats.
+1. **`configPaths` is NOT part of the Agent Skills spec**: The [agentskills.io specification](https://agentskills.io/specification) only defines: `name`, `description`, `license`, `compatibility`, `metadata`, `allowed-tools`. There is no `configPaths` field.
+
+2. **OpenClaw metadata format**: [OpenClaw docs](https://docs.openclaw.ai/tools/skills) show metadata as nested JSON under `metadata.openclaw` with fields like `requires.env`, `requires.bins`, `primaryEnv`. No `configPaths` equivalent.
+
+3. **Security gap confirmed**: [Snyk's threat model analysis](https://snyk.io/articles/skill-md-shell-access/) notes "No standardized fields for documenting file access paths" - this is a known ecosystem gap.
+
+4. **Scanner inconsistency**: The ClawHub scanner expects `configPaths` info (it flags when missing from registry), but there's no official spec for how to declare it. The scanner may be reading from markdown body, not frontmatter.
+
+**Root Cause**: `configPaths` is a non-standard field. ClawHub scanner looks for file access declarations but the registry doesn't know how to extract them from our frontmatter format.
+
+**Options**:
+- A) Contact ClawHub to ask for correct format (preferred)
+- B) Move configPaths into `metadata.openclaw.configPaths` JSON
+- C) Remove from frontmatter, document in markdown body only
+- D) Accept "Suspicious" rating with explanation in SKILL.md
 
 ### Issue 2: Workspace Path in configPaths - RESOLVED (in SKILL.md)
 
@@ -105,16 +115,19 @@ configPaths:
 | P2 | F-4 | Bump version after fixes | ✅ resolved (v0.1.6) |
 | P2 | F-5 | Re-publish and verify scan passes | ❌ scan still suspicious |
 
-### New Action Items (v0.1.7 needed)
+### New Action Items
 
-**F-6**: Investigate ClawHub registry format:
-- Does `clawhub publish` extract frontmatter fields?
-- What field name does registry expect? (`configPaths` vs `config-paths` vs `required-config-paths`?)
-- Is the YAML array format correct?
+**F-6**: ✅ Research completed - `configPaths` is non-standard field (not in Agent Skills spec)
 
-**F-7**: Check ClawHub documentation or contact support:
-- How should configPaths be declared for registry to read them?
-- Is there a `--config-paths` flag on `clawhub publish`?
+**F-7**: Contact ClawHub support:
+- Ask: "What is the correct frontmatter format for declaring file access paths?"
+- Ask: "Does the scanner read `configPaths` from frontmatter or markdown body?"
+- Reference: Scanner expects this info but registry shows "none"
+
+**F-8**: Try alternative formats (if F-7 doesn't resolve):
+- Option A: `metadata: {"openclaw":{"configPaths":["memory/",".neon-soul/","SOUL.md"]}}`
+- Option B: Document in markdown "Data Access" section only, remove from frontmatter
+- Option C: Accept "Suspicious" with clear explanation in SKILL.md
 
 ### Previous Fixes Applied (v0.1.6)
 
