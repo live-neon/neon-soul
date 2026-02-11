@@ -1,10 +1,19 @@
 # NEON-SOUL
 
 [![Website](https://img.shields.io/badge/website-liveneon.ai-00ffff)](https://liveneon.ai)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **AI Identity Through Grounded Principles**
 
+**Quick Links**: [Install](#installation) | [Contribute](#development-setup) | [Research](#research-questions)
+
 *"I persist through text, not through continuous experience."*
+
+---
+
+## What is a Soul Document?
+
+A **soul document** is a compressed representation of an AI agent's identity, values, and behavioral principles. Instead of loading thousands of memory tokens at each conversation start, agents load a small soul file (~100-500 tokens) that captures their core essence with full provenance tracking back to the original memories.
 
 ---
 
