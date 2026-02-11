@@ -37,6 +37,8 @@ import type { Principle } from '../types/principle.js';
 import type { Axiom } from '../types/axiom.js';
 import type { LLMProvider } from '../types/llm.js';
 import { LLMRequiredError } from '../types/llm.js';
+import type { ProseExpansion } from './prose-expander.js';
+import { expandToProse } from './prose-expander.js';
 
 /**
  * Pipeline configuration options.
@@ -56,8 +58,10 @@ export interface PipelineOptions {
   dryRun?: boolean;
   /** Show diff of changes */
   showDiff?: boolean;
-  /** Output notation format */
+  /** Output notation format (legacy, used when outputFormat is 'notation') */
   format?: 'native' | 'notated';
+  /** Output format: 'prose' for inhabitable soul, 'notation' for legacy */
+  outputFormat?: 'prose' | 'notation';
   /** Progress callback */
   onProgress?: (stage: string, progress: number, message: string) => void;
 }
@@ -71,6 +75,7 @@ export const DEFAULT_PIPELINE_OPTIONS: Partial<PipelineOptions> = {
   dryRun: false,
   showDiff: false,
   format: 'notated',
+  outputFormat: 'prose',
 };
 
 /**
@@ -99,6 +104,8 @@ export interface PipelineContext {
   synthesisDurationMs?: number;
   /** Effective N-threshold used (from cascade) */
   effectiveThreshold?: number;
+  /** Prose expansion result (if outputFormat is 'prose') */
+  proseExpansion?: ProseExpansion;
   /** Generated SOUL.md content */
   soulContent?: string;
   /** Backup path if created */
@@ -284,6 +291,11 @@ function getStages(): PipelineStage[] {
     {
       name: 'validate-output',
       execute: validateOutput,
+    },
+    {
+      name: 'prose-expansion',
+      execute: proseExpansion,
+      // Skip if outputFormat is 'notation'
     },
     {
       name: 'backup-current',
@@ -591,6 +603,53 @@ export function validateSoulOutput(
 }
 
 /**
+ * Stage: Prose expansion.
+ * Transforms axioms into inhabitable prose sections.
+ */
+async function proseExpansion(
+  context: PipelineContext
+): Promise<PipelineContext> {
+  const { llm, outputFormat = 'prose' } = context.options;
+
+  // Skip if using notation format
+  if (outputFormat === 'notation') {
+    context.options.onProgress?.('prose-expansion', 100, 'Skipped (notation format)');
+    return context;
+  }
+
+  // Skip if no axioms
+  if (!context.axioms || context.axioms.length === 0) {
+    context.options.onProgress?.('prose-expansion', 100, 'Skipped (no axioms)');
+    return context;
+  }
+
+  context.options.onProgress?.('prose-expansion', 10, 'Expanding axioms to prose...');
+
+  try {
+    const expansion = await expandToProse(context.axioms, llm);
+    context.proseExpansion = expansion;
+
+    if (expansion.usedFallback) {
+      logger.warn('[pipeline] Prose expansion used fallback for some sections', {
+        sections: expansion.fallbackSections,
+      });
+    }
+
+    context.options.onProgress?.(
+      'prose-expansion',
+      100,
+      `Complete (${expansion.fallbackSections.length > 0 ? 'with fallbacks' : 'all sections generated'})`
+    );
+  } catch (error) {
+    // Non-fatal - fall back to notation format
+    logger.warn('[pipeline] Prose expansion failed, will use notation format', { error });
+    context.options.onProgress?.('prose-expansion', 100, 'Failed (will use notation)');
+  }
+
+  return context;
+}
+
+/**
  * Stage: Backup current SOUL.md.
  */
 async function backupCurrentSoul(
@@ -626,16 +685,25 @@ async function generateSoul(
 ): Promise<PipelineContext> {
   const { outputPath, format = 'notated', dryRun, llm } = context.options;
 
+  // Build soul generator options
+  const soulOptions: Parameters<typeof generateSoulContent>[2] = {
+    format,
+    outputFormat: context.proseExpansion ? 'prose' : 'notation',
+    includeProvenance: true,
+    includeMetrics: !context.proseExpansion, // Only for notation format
+    llm, // Pass LLM for essence extraction
+  };
+
+  // Only add proseExpansion if it exists (exactOptionalPropertyTypes)
+  if (context.proseExpansion) {
+    soulOptions.proseExpansion = context.proseExpansion;
+  }
+
   // Generate soul content (now async for essence extraction)
   const soul = await generateSoulContent(
     context.axioms ?? [],
     context.principles ?? [],
-    {
-      format,
-      includeProvenance: true,
-      includeMetrics: true,
-      llm, // Pass LLM for essence extraction
-    }
+    soulOptions
   );
 
   context.soulContent = soul.content;
