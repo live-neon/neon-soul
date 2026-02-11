@@ -41,7 +41,7 @@ See `skill/SKILL.md` for full command documentation.
 ## Links
 
 - **Website**: https://liveneon.ai
-- **GitHub**: https://github.com/leegitw/neon-soul
+- **GitHub**: https://github.com/geeks-accelerator/neon-soul
 - **npm**: https://www.npmjs.com/package/neon-soul
 - **ClawHub**: https://clawhub.ai (search "neon-soul")
 - **Agent Skills Standard**: https://agentskills.io

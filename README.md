@@ -224,7 +224,7 @@ neon-soul/
 ### Claude Code / Gemini CLI / Cursor
 
 ```bash
-git clone https://github.com/leegitw/neon-soul
+git clone https://github.com/geeks-accelerator/neon-soul
 cp -r neon-soul/skill ~/.claude/skills/neon-soul
 ```
 
