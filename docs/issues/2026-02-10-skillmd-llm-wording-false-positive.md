@@ -213,7 +213,7 @@ Twin review conducted by Technical and Creative reviewers.
 - [x] Version updated in `skill/SKILL.md` (frontmatter)
 - [x] Version updated in `src/skill-entry.ts`
 - [x] Security scan troubleshooting updated in `docs/workflows/skill-publish.md`
-- [ ] Publish patch version (v0.1.3)
+- [x] Publish patch version (v0.1.3)
 - [ ] ClawHub scan verified post-publish (no "Suspicious" flag)
 
 ---

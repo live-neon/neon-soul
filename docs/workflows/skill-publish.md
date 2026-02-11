@@ -380,3 +380,4 @@ clawhub --workdir . publish skill \
 | 0.1.0 | 2026-02-10 | Initial release |
 | 0.1.1 | 2026-02-10 | Security scan clarifications |
 | 0.1.2 | 2026-02-10 | Version sync fixes, README path fixes |
+| 0.1.3 | 2026-02-11 | Security scan fixes: disableModelInvocation, data handling statement |
