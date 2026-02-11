@@ -59,7 +59,9 @@ NEON-SOUL is an OpenClaw skill that provides soul synthesis with semantic compre
 | `state.ts` | Incremental processing state | `loadState`, `saveState`, `shouldRunSynthesis` |
 | `backup.ts` | Backup and rollback | `backupFile`, `rollback`, `commitSoulUpdate` |
 | `template-extractor.ts` | Extract signals from SOUL.md templates | `extractFromTemplate`, `extractFromTemplates` |
-| `principle-store.ts` | Accumulate and match principles | `createPrincipleStore`, `PrincipleStore`, `setThreshold` |
+| `semantic-classifier.ts` | LLM-based semantic classification | `classifyDimension`, `classifyStance`, `classifyImportance` |
+| `principle-store.ts` | Accumulate, match, and score principles | `createPrincipleStore`, `PrincipleStore`, `setThreshold`, `getOrphanedSignals` |
+| `tension-detector.ts` | Detect axiom conflicts | `detectTensions`, `attachTensionsToAxioms`, `ValueTension` |
 | `compressor.ts` | Synthesize axioms from principles | `compressPrinciples`, `compressPrinciplesWithCascade`, `generateSoulMd` |
 | `soul-generator.ts` | SOUL.md generation | `generateSoul`, `formatAxiom` |
 | `prose-expander.ts` | Axiom-to-prose expansion | `expandToProse`, `ProseExpansion` |
@@ -71,12 +73,17 @@ NEON-SOUL is an OpenClaw skill that provides soul synthesis with semantic compre
 
 | Type | Purpose |
 |------|---------|
-| `Signal` | Extracted behavioral pattern with embedding |
+| `Signal` | Extracted behavioral pattern with embedding, stance, importance |
+| `SignalStance` | ASSERT \| DENY \| QUESTION \| QUALIFY \| TENSIONING |
+| `SignalImportance` | CORE \| SUPPORTING \| PERIPHERAL |
 | `GeneralizedSignal` | Abstract principle with provenance (model, prompt version) |
-| `Principle` | Intermediate stage with N-count tracking |
-| `Axiom` | Compressed core identity element |
+| `Principle` | Intermediate stage with N-count and centrality tracking |
+| `PrincipleCentrality` | FOUNDATIONAL \| CORE \| SUPPORTING |
+| `Axiom` | Compressed core identity element with tensions |
+| `AxiomTension` | Detected conflict with another axiom (severity, description) |
 | `ProvenanceChain` | Full audit trail from axiom to source |
 | `SoulCraftDimension` | OpenClaw's 7 soul dimensions |
+| `ArtifactProvenance` | SELF \| CURATED \| EXTERNAL (SSEM model) |
 
 ---
 
@@ -203,6 +210,88 @@ With generalization (threshold 0.75 for abstract embeddings):
 - **Improvement**: Significant clustering vs raw signals
 
 **Threshold tuning**: The 0.75 default was empirically selected based on observed similarities (0.78-0.83) between generalized signals using "Values X over Y" patterns. Configurable via `.neon-soul/config.json`.
+
+---
+
+## Signal Metadata (PBD Alignment)
+
+Signals carry PBD-aligned metadata for weighted synthesis:
+
+### Stance Classification
+
+| Stance | Meaning | Synthesis Weight |
+|--------|---------|------------------|
+| **ASSERT** | Stated as definite ("I always...") | Full weight |
+| **DENY** | Stated as rejection ("I never...") | Full weight |
+| **QUESTION** | Uncertain ("I wonder if...") | Reduced weight (<0.7 confidence filtered) |
+| **QUALIFY** | Conditional ("Sometimes...") | Context-dependent |
+| **TENSIONING** | Indicates value conflict | Preserved for tension detection |
+
+Implementation: `src/lib/semantic-classifier.ts` (`classifyStance`)
+
+### Importance Classification
+
+| Importance | Meaning | Weight Multiplier |
+|------------|---------|-------------------|
+| **CORE** | Fundamental value ("Above all...") | 1.5x |
+| **SUPPORTING** | Evidence or example | 1.0x |
+| **PERIPHERAL** | Context or tangent | 0.5x |
+
+Implementation: `src/lib/semantic-classifier.ts` (`classifyImportance`)
+
+---
+
+## Synthesis Features
+
+### Weighted Clustering
+
+Principle strength = Σ (importance weight × signal contribution)
+
+- CORE signals boost principle strength by 1.5x
+- PERIPHERAL signals contribute only 0.5x
+- Enables "rare but core" values to surface over "frequent but peripheral" mentions
+
+Implementation: `src/lib/principle-store.ts` (`IMPORTANCE_WEIGHT`)
+
+### Tension Detection
+
+Axiom pairs are analyzed for value conflicts:
+
+| Severity | Criteria | Example |
+|----------|----------|---------|
+| **HIGH** | Same dimension conflict | Honesty vs White lies (both honesty-framework) |
+| **MEDIUM** | Both core-tier axioms | Safety vs Helpfulness |
+| **LOW** | Cross-domain tension | Efficiency vs Thoroughness |
+
+Tensions are attached to axioms via `tensions` field for SOUL.md output.
+
+Implementation: `src/lib/tension-detector.ts`
+
+### Orphan Tracking
+
+Signals that fail to cluster (similarity < threshold) are tracked:
+
+- Provides audit trail for unclustered content
+- High orphan rate (>20%) triggers warning
+- Orphans accessible via `store.getOrphanedSignals()`
+
+Implementation: `src/lib/principle-store.ts` (`orphanedSignals`)
+
+### Centrality Scoring
+
+Principles are scored by contributing signal importance:
+
+| Centrality | Core Signal Ratio | Interpretation |
+|------------|-------------------|----------------|
+| **FOUNDATIONAL** | ≥50% core | Critical value (rare but central) |
+| **CORE** | 20-50% core | Important value |
+| **SUPPORTING** | <20% core | Contextual value |
+
+This distinguishes "rare but core" from "frequent but peripheral":
+- High N-count + low centrality = commonly mentioned but not central
+- Low N-count + high centrality = rare but fundamental
+
+Implementation: `src/lib/principle-store.ts` (`computeCentrality`)
 
 ---
 
