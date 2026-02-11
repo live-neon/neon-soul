@@ -2,7 +2,7 @@
 
 **Created**: 2026-02-10
 **Updated**: 2026-02-10
-**Status**: Open
+**Status**: Resolved
 **Priority**: High
 **Type**: Code Review Consolidation
 
@@ -174,16 +174,16 @@ Consider adding length constraints directly in the prompt.
 
 ### Important (Must Fix)
 
-- [ ] I-1: Update `createPrincipleStore` default to 0.75
-- [ ] I-2: Prevent error message leakage in essence extraction
-- [ ] I-3: Fix race condition in signal deduplication
-- [ ] I-4: Remove or wire `axiomNThreshold` config
+- [x] I-1: Update `createPrincipleStore` default to 0.75
+- [x] I-2: Prevent error message leakage in essence extraction
+- [x] I-3: Fix race condition in signal deduplication
+- [x] I-4: Remove or wire `axiomNThreshold` config
 
 ### Minor (Should Fix)
 
-- [ ] M-2: Remove or implement `includeUnconverged` option
-- [ ] M-3: Add negation handling to substring matching
-- [ ] M-4: Consider instance-level cache
+- [x] M-2: Remove or implement `includeUnconverged` option
+- [x] M-3: Add negation handling to substring matching
+- [x] M-4: Consider instance-level cache
 
 ### Minor (May Defer)
 
