@@ -643,6 +643,11 @@ After successful deployment:
 - `docs/workflows/documentation-update.md` - Systematic documentation update process (used in Stage 6)
 - `docs/workflows/skill-publish.md` - Repeatable publish workflow (extracted from this plan)
 
+**Issues from Deployment**:
+- `docs/issues/2026-02-10-post-deployment-version-fixes.md` - Version sync fixes (resolved, v0.1.2)
+- `docs/issues/2026-02-10-skill-publish-workflow-improvements.md` - Workflow enhancements (resolved)
+- `docs/issues/2026-02-10-skillmd-llm-wording-false-positive.md` - "call LLMs" triggers false positive (open)
+
 **Related Files**:
 - `skill/SKILL.md` - Skill manifest
 - `skill/README.md` - Installation instructions

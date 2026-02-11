@@ -44,6 +44,7 @@ See parent: `/docs/issues/README.md`
 | [Synthesis Twin Review Findings](2026-02-10-synthesis-twin-review-findings.md) | 🔴 open | **high** |
 | [Post-Deployment Version Fixes](2026-02-10-post-deployment-version-fixes.md) | ✅ resolved | medium |
 | [Skill Publish Workflow Improvements](2026-02-10-skill-publish-workflow-improvements.md) | ✅ resolved | low |
+| [SKILL.md LLM Wording False Positive](2026-02-10-skillmd-llm-wording-false-positive.md) | 🔴 open | medium |
 
 ---
 
