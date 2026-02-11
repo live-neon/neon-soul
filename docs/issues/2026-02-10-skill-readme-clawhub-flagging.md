@@ -2,7 +2,7 @@
 
 **Created**: 2026-02-10
 **Updated**: 2026-02-11
-**Status**: Open
+**Status**: Pending Publish
 **Priority**: Medium
 **Type**: Security Scan Response
 
@@ -85,32 +85,50 @@ ClawHub security scan regressed from **"Benign (high confidence)"** (v0.1.5) to 
 
 | Priority | ID | Issue | Status |
 |----------|-----|-------|--------|
-| P1 | F-1 | Verify configPaths in published registry | 🔴 open |
-| P1 | F-2 | Resolve workspace path inconsistency | 🔴 open |
-| P1 | F-3 | Clarify model invocation vs embedding in SKILL.md | 🔴 open |
-| P2 | F-4 | Bump version after fixes | 🔴 open |
+| P1 | F-1 | Verify configPaths in published registry | ⏳ pending publish |
+| P1 | F-2 | Resolve workspace path inconsistency | ✅ resolved |
+| P1 | F-3 | Clarify model invocation vs embedding in SKILL.md | ✅ resolved |
+| P2 | F-4 | Bump version after fixes | ✅ resolved (v0.1.6) |
 | P2 | F-5 | Re-publish and verify scan passes | 🔴 open |
+
+### Fixes Applied (v0.1.6)
+
+**F-2 Fix**: Added `~/.openclaw/workspace` to configPaths in frontmatter.
+
+**F-3 Fix**: Added new "Model Invocation Clarification" section explaining:
+- `disable-model-invocation: true` means no LLM calls required
+- Embeddings use local inference (all-MiniLM-L6-v2), not LLM invocation
+- Cosine similarity is mathematical, not a model call
+
+**F-4 Fix**: Version bumped from 0.1.5 → 0.1.6.
 
 ---
 
-## Previous Resolution (v0.1.5) - Now Regressed
+## v0.1.6 Fixes (Current)
 
-v0.1.5 achieved "Benign (high confidence)" with these fixes:
+v0.1.6 addresses the scan regression with these changes:
 
 ```yaml
 ---
 name: NEON-SOUL
-version: 0.1.5
+version: 0.1.6
 disableModelInvocation: true
 disable-model-invocation: true  # kebab-case for registry
 configPaths:
   - memory/
   - .neon-soul/
   - SOUL.md
+  - ~/.openclaw/workspace  # F-2 FIX: Now listed
 ---
 ```
 
-**What changed**: The scanner may have been updated with stricter checks, or the registry format changed. The fixes applied in v0.1.5 may not be propagating correctly to the registry metadata.
+Plus new "Model Invocation Clarification" section explaining embeddings vs LLM calls (F-3 FIX).
+
+---
+
+## Previous Resolution (v0.1.5) - Regressed
+
+v0.1.5 achieved "Benign (high confidence)" but regressed due to stricter scanner checks around workspace paths and model invocation documentation.
 
 ---
 
