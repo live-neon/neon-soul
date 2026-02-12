@@ -269,6 +269,7 @@ Three stages, three commits, ~280 lines total.
 - `docs/plans/2026-02-10-inhabitable-soul-output.md` - Prose generation (this validates the output)
 - `docs/plans/2026-02-10-pbd-alignment.md` - Signal quality (this validates the synthesis)
 - `docs/plans/2026-02-11-soul-grounding-section.md` - Grounding (validation could inform grounding needs)
+- `docs/plans/2026-02-11-forge-compression-native-souls.md` - Forge transforms prose into compression-native forms. Self-validation can be used as the survivability test in the forge pipeline to verify compression-native forms still carry authentic signal. A forged soul that passes self-validation has proven the compression preserved meaning.
 
 ---
 

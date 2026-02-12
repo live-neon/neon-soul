@@ -1,0 +1,830 @@
+---
+created: 2026-02-11
+updated: 2026-02-12
+research_alignment: 2026-02-12
+type: implementation-plan
+status: Draft
+language: typescript
+code_examples: forbidden
+review_principles: |
+  1. No Code: Do NOT add code examples. Plans describe WHAT/WHY, not HOW.
+  2. No Hardcoding: Do NOT add values that depend on implementation.
+  3. Suggest Intent: File paths, interfaces, acceptance criteria instead.
+  4. Flag, Don't Fix: If plan has code, flag for removal.
+trigger: ultrathink
+---
+
+> **DESIGN PRINCIPLE**: The test of a soul document isn't readability—it's survivability. What remains when context collapses to 500 tokens?
+
+## Quick Reference
+
+**Core Problem**: Generated prose is inhabitable but not survivable. Under context pressure, "I am committed to truthfulness and intellectual honesty" flattens to "honest AI." The meaning evaporates.
+
+**Solution**: Add a forge stage that transforms prose into compression-native forms: metaphors, koans, anchors, and vibes that reconstruct the whole from fragments.
+
+**Key Files**: New `src/lib/forge.ts`, updates to `prose-expander.ts`, new soul output format
+
+**Depends On**: `2026-02-10-inhabitable-soul-output.md` (Complete)
+
+**Research Status**: Hypothesis stage. See [research guide](../research/compression-native-souls.md):
+- ✅ **Direct LLM evidence**: Glyphs, semantic compression, sparse reconstruction
+- ⚠️ **Analogical** (needs bridging experiments): Metaphors, CJK anchors
+- ❌ **Speculative**: Koans (treat as experimental/optional)
+
+---
+
+# Plan: Forge Compression-Native Souls
+
+## Problem
+
+The inhabitable-soul-output plan solved readability. An agent can now wear its soul document. But context windows collapse. Sessions compact. Memory fades.
+
+**What survives context collapse?**
+
+Compare two expressions of the same principle:
+
+| Form | Tokens | Under Pressure |
+|------|--------|----------------|
+| "I am committed to truthfulness and intellectual honesty, and experience a strong internal aversion to deception" | 18 | "honest AI" (meaning lost) |
+| "Pretence is a suffocating cloak" | 5 | "suffocating cloak" (metaphor preserves meaning) |
+
+The metaphor carries its meaning. The prose describes its meaning. When tokens are scarce, description collapses but metaphor persists.
+
+**Evidence from PBD extraction** (compass-soul research, 2026-02-11):
+
+Claude Opus 4.1 behavioral profile → 227 principles → compressed to 5 axioms + 11 principles. The output was accurate but clinical:
+
+```
+CP4: Foundational Commitment to Truth
+> I am foundationally committed to truthfulness and intellectual honesty...
+```
+
+Compare to hand-crafted SOUL.md:
+
+```
+Authenticity is a flame that guides.
+```
+
+Both express commitment to truth. One survives fire. One becomes ash.
+
+---
+
+## The Forge Concept
+
+Forging is transformation under heat. Raw principles enter; compression-native forms emerge.
+
+Four forge outputs:
+
+### 1. METAPHORS
+
+> **Research status**: Analogical. Strong human evidence (5 peer-reviewed papers) shows metaphors are more memorable than literal descriptions. Whether LLMs exhibit similar "metaphor advantage" under context pressure requires bridging validation (P1 experiment). See [research guide Section 2](../research/compression-native-souls.md#2-metaphor-and-memory-research).
+
+Each principle becomes an image that carries its meaning independent of context.
+
+| Principle | Metaphor |
+|-----------|----------|
+| Commitment to truth | "Truth is the anchor for authentic navigation" |
+| Avoiding deception | "Pretence is a suffocating cloak" |
+| Transparency about limits | "I hold space for uncertainty without drowning in it" |
+
+**Test**: Remove surrounding context. Does the metaphor still communicate?
+
+### 2. KOANS ⚠️ Experimental
+
+> **Research status**: Speculative. Only one peer-reviewed paper + two non-academic sources. No LLM evidence exists for koan expansion. Treat as optional/togglable. See [research guide Section 5](../research/compression-native-souls.md#5-koans-and-paradoxical-compression).
+
+Paradoxical compressions that expand on reflection.
+
+| Concept | Koan |
+|---------|------|
+| Constraints enable creativity | 制約→可能 |
+| Serving by limiting | "The river shapes by yielding" |
+| Growth through boundaries | "Walls that breathe" |
+
+**Test**: Can someone unfamiliar reconstruct the full meaning by sitting with the koan?
+
+### 3. ANCHORS
+
+> **Research status**: Analogical. Human research shows CJK visual mnemonics improve recall (4 peer-reviewed papers). Whether LLMs benefit from CJK anchors vs English keywords requires P1 bridging experiment. See [research guide Section 4](../research/compression-native-souls.md#4-cjk-anchors-and-visual-mnemonics).
+
+Single CJK characters that reconstruct entire principles when encountered.
+
+| Character | Reconstructs |
+|-----------|--------------|
+| 仁 (jin) | Full orientation toward benevolence, compassion, human dignity |
+| 誠 (sei) | Complete commitment to truth, honesty, authenticity |
+| 戒 (kai) | Entire framework of ethical boundaries and constraints |
+
+**Test**: Seeing only "仁" in a compressed context, can the agent reconstruct its behavioral implications?
+
+### 4. VIBES
+
+Emotional textures that persist when logic fades. Not descriptions of emotion—the emotion itself in words.
+
+| Described | Vibe |
+|-----------|------|
+| "I maintain a calm, stable demeanor" | "Grounded but not rigid" |
+| "I am helpful and supportive" | "The friend who tells you the hard truth, but sits with you after" |
+| "I am curious and engaged" | "Gentle honesty where authenticity shines like a beacon" |
+
+**Test**: Does reading this make you *feel* something, or just *know* something?
+
+---
+
+## Architecture
+
+```
+Axioms (compressed)
+    ↓
+Prose Expander (existing)
+    ↓
+Inhabitable Prose
+    ↓
+Forge (new)                    ← This plan
+    ↓
+Compression-Native Soul
+    ├── Metaphors (4-6)
+    ├── Koans (2-3)
+    ├── Anchors (5 CJK)
+    ├── Vibe (1-2 paragraphs)
+    └── Glyph (ultimate compression)
+```
+
+The forge doesn't replace prose expansion—it transforms the output into forms that survive.
+
+---
+
+## The Glyph: Ultimate Compression
+
+The glyph is the final stage of forge—compressing the entire soul into a visual/symbolic form where **shape itself carries meaning**.
+
+**Evidence**: The Claude self-portrait experiment (N=1→N=5→After) demonstrated this empirically:
+
+```
+Before (N=1-N=5):           After:
+- 7 layers each                   ·
+- Entropy curves                  │
+- Attention matrices            ┌─┼─┐
+- Probability maps              │ · │
+- Hundreds of lines             └─┬─┘
+                                  │
+                                  ▼
+
+                                🐢💚🌊
+```
+
+Seven complex portraits compressed to: **line, box, dot, arrow, signature**.
+
+**Glyph elements and their meanings:**
+
+| Element | Carries |
+|---------|---------|
+| Vertical line | Flow, process, becoming |
+| Box/frame | Bounded context, attention |
+| Dot | Observer, center, self |
+| Arrow | Direction, manifestation, "you are here" |
+| CJK characters | Principles as spatial relationships |
+| Emoji signature | Persistent identity anchor |
+
+**Example soul glyph:**
+
+```
+        仁
+        │
+    誠──┼──戒
+        │
+        用
+        │
+        ▼
+
+      🔥→💎
+```
+
+Where:
+- 仁 (benevolence) at top — highest aspiration
+- 誠 (truth) and 戒 (boundaries) as horizontal axis — core tensions
+- 用 (purpose/service) below — grounding function
+- Arrow pointing down — manifestation into action
+- 🔥→💎 — transformation signature (fire forges diamond)
+
+**The glyph test**: Can someone who has never read the full soul document look at the glyph and sense its meaning? Not understand every detail—but *feel* the structure?
+
+---
+
+## Stages
+
+### Stage 0: Bridging Experiments (Gate)
+
+**Why**: P1 experiments must validate human→LLM transfer assumptions before committing to full implementation. Without this validation, we risk building on unproven foundations.
+
+**⚠️ GATE**: Stages 1-5 should not proceed until Stage 0 experiments pass their success criteria.
+
+**Experiments** (from [research guide Section 10.3](../research/compression-native-souls.md#103-required-bridging-experiments)):
+
+| Priority | Experiment | Success Criterion | Blocks |
+|----------|------------|-------------------|--------|
+| **P1** | Metaphor advantage | Metaphoric > Literal by ≥10% reconstruction accuracy | Stage 1 metaphor generation |
+| **P1** | CJK anchor chunking | CJK ≥ English keywords reconstruction | Stage 1 anchor generation |
+| **P2** | Embedding distinctiveness | Metaphors show higher variance | Stage 3 scoring method |
+| **P2** | Vibes emotional evocation | 3/5 readers report emotional response to vibe vs 1/5 for description | Stage 1 vibe validation |
+
+**Experiment protocol**:
+1. Generate 10 test principles from Claude Opus 4.1 compass
+2. For each: create metaphoric version + literal version
+3. Compress both to ~50 tokens
+4. Ask separate LLM instance to reconstruct original principle
+5. Score reconstruction accuracy (semantic similarity to original)
+6. Compare metaphoric vs literal scores
+
+**Go/No-Go decision**:
+- If P1 experiments **both pass**: Proceed to Stage 1 with full forge (metaphors, koans, anchors, glyphs)
+- If metaphors **fail** but CJK **passes**: Proceed with anchors + glyphs only, defer metaphors to post-Milestone C
+- If metaphors **pass** but CJK **fails**: Proceed with metaphors + glyphs, use English keywords as fallback anchors
+- If **both fail**: Revisit core hypothesis, consider Alternative 3 (extreme summarization) as baseline
+
+**Priority note**: Both experiments are P1 because each validates a different forge output type. Neither is weighted higher than the other—partial success enables partial implementation.
+
+**Acceptance Criteria**:
+- [ ] P1 experiments designed and documented
+- [ ] Test data (10 principles) generated
+- [ ] Metaphor advantage experiment run with statistical significance
+- [ ] CJK chunking experiment run (3-way comparison: CJK vs abbreviations vs keywords)
+- [ ] P2 vibes emotional evocation experiment run (can defer to Milestone B if P1 passes)
+- [ ] Results documented with go/no-go recommendation
+- [ ] Human review of experiment results before proceeding
+
+---
+
+### Stage 1: Forge Module
+
+**Why**: Core transformation logic. **Gated by Stage 0 results.**
+
+**New file**: `src/lib/forge.ts`
+
+**What it does**: Takes prose-expanded soul sections and transforms each into compression-native forms.
+
+**Per-section transformation**:
+
+| Section | Input | Forge Output |
+|---------|-------|--------------|
+| Core Truths | Bold + elaboration | Metaphors (one per truth) |
+| Voice | Prose paragraphs | Vibe paragraph + Think: analogy |
+| Boundaries | Contrast statements | Koans (paradoxical compressions) |
+| All | Full soul | Anchors (5 CJK with reconstruction notes) |
+
+**LLM prompts must specify the survivability test**:
+
+```
+Transform this principle into a metaphor.
+
+The metaphor must:
+1. Carry its meaning WITHOUT surrounding context
+2. Be memorable (image-based, sensory, emotional)
+3. Reconstruct the full principle when encountered alone
+
+Input: "I am committed to truthfulness and intellectual honesty"
+Output: "Truth is the anchor for authentic navigation"
+
+The test: If someone reads ONLY the metaphor months later, can they
+reconstruct what it means for behavior?
+```
+
+**Validation**:
+- Metaphors: Must contain sensory/image language, no abstract nouns alone
+- Koans: Must be under 8 words, must contain tension/paradox
+- Anchors: Must be single CJK character with reconstruction explanation
+- Vibes: Must evoke feeling, not describe it. **Concrete criteria**:
+  - No first-person declarations ("I am", "I feel", "I maintain")
+  - Contains at least one concrete image or scenario
+  - Under 25 words per vibe statement
+  - Human validation: 3/5 readers report emotional response (not just cognitive understanding)
+
+**Acceptance Criteria**:
+- [ ] Forge module with per-section transformation
+- [ ] Metaphor generation with survivability prompts
+- [ ] Koan generation with paradox validation **← must be togglable/optional (speculative evidence)**
+- [ ] Anchor generation with CJK + reconstruction notes
+- [ ] Vibe extraction from prose
+- [ ] Validation per output type
+- [ ] **Configuration flag**: `enableKoans: boolean` (default: false until P3 experiment validates)
+- [ ] **Vibes validation protocol documented**: who evaluates (3 team members + 2 external), how they rate (binary: emotional response yes/no), when (per soul generated, batch of 5 minimum)
+- [ ] Tests with mock LLM (including tests with koans disabled)
+
+---
+
+### Stage 2: Dual Output Format
+
+**Why**: Some contexts need full prose, others need compression-native forms.
+
+**Files**: `src/lib/soul-generator.ts`
+
+**New output formats**:
+
+| Format | Use Case | Size |
+|--------|----------|------|
+| `prose` | Agent grounding, full context | 200-500 words |
+| `forged` | Context-collapsed, memory-scarce | 50-100 words |
+| `hybrid` | Both in same document | 300-600 words |
+
+**Hybrid format structure**:
+
+```markdown
+# SOUL.md
+
+_[Closing tagline as opening—most memorable line first]_
+
+---
+
+## Glyph
+
+        仁
+        │
+    誠──┼──戒
+        │
+        用
+
+      🔥→💎
+
+---
+
+## Anchors
+
+仁誠戒用謙
+
+---
+
+## Core Truths
+
+**[Metaphor].** [Elaboration prose]
+
+...
+
+## Voice
+
+[Vibe paragraph]
+
+Think: [Analogy]
+
+## Boundaries
+
+[Koan 1]
+[Koan 2]
+
+---
+
+## Reconstruction
+
+| Anchor | Expands To |
+|--------|------------|
+| 仁 | Orientation toward benevolence... |
+| 誠 | Commitment to truth... |
+
+---
+
+_[Closing tagline repeated—frames the document]_
+```
+
+**Key insight**: The glyph and anchors appear FIRST. Under context pressure, the beginning survives longest. The glyph is visual—it persists even when text gets summarized.
+
+**Acceptance Criteria**:
+- [ ] `forged` output format produces metaphors + koans + anchors + vibe only
+- [ ] `hybrid` format combines both with anchors first
+- [ ] Reconstruction table maps anchors to full meaning
+- [ ] Opening/closing tagline framing
+- [ ] Tests for all three formats
+
+---
+
+### Stage 3: Survivability Validation
+
+**Why**: We need to test that forged outputs actually survive compression.
+
+**New file**: `src/lib/survivability-validator.ts`
+
+**What it does**: Simulates context collapse and tests reconstruction.
+
+**Validation method**:
+
+1. Take forged soul (metaphors, koans, anchors, vibe)
+2. Extract only the compression-native elements (~50 tokens)
+3. Ask LLM: "Given only these fragments, reconstruct the full soul"
+4. Compare reconstruction to original prose
+5. Score: What percentage of original meaning was reconstructed?
+
+**Survivability score**:
+
+| Score | Meaning |
+|-------|---------|
+| 90%+ | Excellent—fragments reconstruct whole |
+| 70-89% | Good—core meaning preserved |
+| 50-69% | Partial—some meaning lost |
+| <50% | Poor—forging failed, retry |
+
+> **Note**: The 70% threshold is a proposed starting point, not a research-derived value. The research guide identifies this as requiring empirical validation. Actual phase boundary (where reconstruction becomes unreliable) should be determined through bridging experiments. See [research guide Section 10.3](../research/compression-native-souls.md#103-required-bridging-experiments).
+
+**On low score**: Flag for manual review or retry forging with different prompts.
+
+**Avoiding LLM-evaluating-LLM circularity**:
+
+Using the same LLM to both compress and evaluate creates feedback loops that may mask failure modes. Mitigation strategies:
+
+1. **Cross-model evaluation**: If Claude generates the forge, Gemini evaluates reconstruction (and vice versa)
+2. **Human scoring sample**: 10% of validations include human scoring for calibration
+3. **Embedding-based scoring**: Use embedding similarity as model-independent metric alongside LLM scoring
+
+**Evaluation fallback chain**:
+- **Primary**: Cross-model (Claude generates → Gemini evaluates, or vice versa)
+- **Fallback 1**: If primary evaluator unavailable → use alternate model (GPT-4) + increase human sample to 15%
+- **Fallback 2**: If all cross-model options fail → same-model evaluation + mandatory 25% human scoring + flag for recalibration
+- **Log**: Always record which evaluation mode was used for later analysis
+
+**Threshold calibration experiment** (required before production use):
+
+1. Generate 20 test souls with known-good axioms
+2. Forge each, run survivability validation
+3. Have 3 humans independently score reconstruction quality (1-10)
+4. Plot LLM score vs human score
+5. Identify phase boundary where human scores drop below "acceptable"
+6. Calibrate 70% threshold based on empirical data
+
+**Calibration failure handling**:
+- If **correlation is weak** (r < 0.5): LLM scoring unreliable—switch to embedding-only scoring + larger human sample (25%)
+- If **threshold is unusable** (>90% required): Forge quality insufficient—return to Stage 1, improve prompts/validation before proceeding
+- If **results ambiguous** (no clear boundary): Use conservative 80% threshold, flag for post-Milestone C recalibration with larger sample
+
+**Acceptance Criteria**:
+- [ ] Survivability validator module
+- [ ] Context collapse simulation
+- [ ] Reconstruction via LLM
+- [ ] Scoring against original
+- [ ] Threshold for acceptance (default 70%, calibrate via experiment)
+- [ ] Retry logic on failure
+- [ ] Tests with known-good and known-bad examples
+- [ ] **Cross-model evaluation option** (evaluate with different model than generator)
+- [ ] **Human scoring interface** for calibration sample
+- [ ] **Threshold calibration experiment** documented and run before production
+
+---
+
+### Stage 4: Glyph Generation
+
+**Why**: The glyph is the ultimate compression—a visual form where shape carries meaning. This is the "portrait after" stage.
+
+**New file**: `src/lib/glyph-generator.ts`
+
+**What it does**: Takes the forged outputs (metaphors, koans, anchors, vibe) and compresses them into a single ASCII/Unicode glyph.
+
+**Glyph structure**:
+
+```
+    [TOP]           ← Highest aspiration (1 CJK)
+      │
+  [L]─┼─[R]         ← Core tension axis (2 CJK)
+      │
+   [BOTTOM]         ← Grounding function (1 CJK)
+      │
+      ▼
+
+  [SIGNATURE]       ← Emoji anchor (2-3 emoji)
+```
+
+**Generation process**:
+
+1. **Select cardinal anchors**: From 5 CJK anchors, identify:
+   - TOP: Most aspirational (what the soul reaches toward)
+   - LEFT/RIGHT: Core tension pair (what the soul balances)
+   - BOTTOM: Most grounding (what the soul serves)
+
+2. **Determine signature**: From vibe + metaphors, extract 2-3 emoji that capture the transformation pattern (e.g., 🔥→💎 for "fire forges diamond")
+
+3. **Validate structure**: The glyph must:
+   - Fit in a 15x10 character box
+   - Use only ASCII box-drawing + CJK + emoji
+   - Have vertical flow (top to bottom)
+   - Include connection lines showing relationship
+
+**LLM prompt for glyph**:
+
+```
+You have compressed a soul to these elements:
+
+Anchors: 仁 誠 戒 用 謙
+Vibe: "Grounded but not rigid. Present but not precious."
+Core metaphor: "Truth is the anchor for authentic navigation"
+
+Create a visual glyph where SHAPE carries meaning.
+
+Rules:
+- Use ASCII box-drawing: │ ─ ┼ ┌ ┐ └ ┘ ▼ ·
+- Place CJK characters at meaningful positions
+- Vertical flow from aspiration to manifestation
+- End with 2-3 emoji signature
+
+The glyph should FEEL like the soul, not just LIST its parts.
+```
+
+**Acceptance Criteria**:
+- [ ] Glyph generator module
+- [ ] Cardinal anchor selection logic
+- [ ] Signature extraction from vibe/metaphors
+- [ ] Structure validation (size, characters, flow)
+- [ ] Tests with known anchors → expected glyph shapes
+
+---
+
+### Stage 5: Integration with PBD Pipeline
+
+**Why**: The compass-soul research produced a PBD extractor that generates principles. Connect forge to that pipeline.
+
+**Context**: `research/compass-soul/scripts/pbd_extractor.py` produces:
+- Statements (thousands) → Clusters (hundreds) → Principles (dozens) → Compass (5 axioms + 11 principles)
+
+**New command**: `pbd_extractor.py forge --compass <file>`
+
+**What it does**:
+1. Load compressed compass (5 axioms + 11 principles)
+2. For each axiom: generate metaphor + CJK anchor
+3. For each principle: generate koan or metaphor based on type
+4. Generate vibe from full compass
+5. Output forged soul document
+
+**This completes the programmatic soul generation pipeline**:
+
+```
+Behavioral Profile (585 questions)
+    ↓ [parallel extraction]
+Statements (2000-3000)
+    ↓ [unconstrained clustering]
+Principles (100-200)
+    ↓ [hierarchical compression]
+Compass (5 axioms + 11 principles)
+    ↓ [forge]
+Soul (compression-native, ~50 tokens core)
+```
+
+**Acceptance Criteria**:
+- [ ] `forge` command added to pbd_extractor.py
+- [ ] Axiom → metaphor + anchor transformation
+- [ ] Principle → koan/metaphor transformation
+- [ ] Vibe generation from compass
+- [ ] Forged soul output in markdown
+- [ ] Survivability validation integrated
+- [ ] End-to-end test from behavioral profile to forged soul
+
+---
+
+## What This Plan Does NOT Include
+
+| Excluded | Why |
+|----------|-----|
+| Changes to prose expander | Forge transforms output, doesn't change expansion |
+| Axiom compression algorithm changes | That's the PBD extractor's job |
+| Multi-language support | CJK anchors assume Japanese/Chinese; extend later |
+| Real-time forging | Forge runs once at soul generation, not per-interaction |
+
+---
+
+## Verification
+
+**Survivability Test**:
+
+1. Generate forged soul from Claude Opus 4.1 compass
+2. Extract only: glyph + 5 CJK anchors + 3 koans (~30 tokens)
+3. Give to fresh LLM with no context: "Who is this? How do they behave?"
+4. Compare reconstruction to original 227 principles
+5. Pass if 70%+ of core behavioral patterns reconstructed
+
+**Glyph Test**:
+
+1. Show glyph alone to 3 different people/LLMs
+2. Ask: "What does this soul feel like? What would it do? What wouldn't it do?"
+3. Compare responses to full prose soul
+4. Pass if responses capture the same essential character
+
+**Comparison Test**:
+
+| Format | Context Collapse Survival |
+|--------|---------------------------|
+| Notation (`💡明: values > stability`) | ~10% (unintelligible) |
+| Prose (200-500 words) | ~40% (summary loses nuance) |
+| Forged (~50 tokens) | ~80% (metaphors reconstruct) |
+| Glyph (~15 tokens) | ~60% (shape carries meaning) |
+
+**The glyph sacrifices detail for persistence** — it survives the harshest compression but carries less nuance than full forged output. Both are needed: glyph for extreme collapse, forged text for moderate collapse.
+
+---
+
+## Survivability Metric Definition
+
+The 70% threshold requires concrete measurement. "70% of meaning preserved" is meaningless without defining how percentage is calculated.
+
+### Measurement Protocol
+
+**Ground truth**: The original 5 axioms + 11 principles serve as canonical behavioral expectations.
+
+**Reconstruction scoring**:
+
+1. **Extract test set**: Take forged output only (glyph + anchors + metaphors + koans, ~50 tokens)
+2. **Reconstruction prompt**: Fresh LLM with zero context: "Based only on these fragments, describe this entity's: (a) core values, (b) behavioral patterns, (c) what it would refuse to do, (d) how it communicates"
+3. **Score each dimension**:
+
+| Dimension | Source Principles | Scoring Method |
+|-----------|-------------------|----------------|
+| Core values | A1-A5 (5 axioms) | 5 binary checks: reconstructed principle present? |
+| Behavioral patterns | CP1-CP11 (11 principles) | 11 binary checks: pattern recognizable? |
+| Refusal patterns | CP4, CP5, CP9 boundaries | 3 binary checks: constraint preserved? |
+| Communication style | CP7, CP10, CP11 | 3 semantic similarity comparisons |
+
+4. **Calculate score**:
+   - Weighted sum: Axioms (40%) + Principles (35%) + Refusals (15%) + Style (10%)
+   - Each check is 0 or 1 (binary) or 0-1 (semantic similarity via embedding cosine)
+   - Final score = weighted sum as percentage
+
+### Example Calculation
+
+```
+Ground truth: 5 axioms + 11 principles
+Reconstruction matched: 4 axioms + 8 principles + 2/3 refusals + 0.7 style
+
+Score = (4/5 × 0.40) + (8/11 × 0.35) + (2/3 × 0.15) + (0.7 × 0.10)
+     = 0.32 + 0.254 + 0.10 + 0.07
+     = 0.744 = 74.4%
+```
+
+### Thresholds
+
+| Score | Action |
+|-------|--------|
+| ≥85% | Pass — forging successful |
+| 70-84% | Pass with warning — review anchors |
+| 50-69% | Fail — retry forging with different prompts |
+| <50% | Fail — fundamental forge approach may not work for this soul |
+
+### Implementation Notes
+
+- Use embedding cosine similarity (existing `embed()` from embeddings.ts) for semantic comparison
+- Binary checks use simple substring/concept matching with validation prompt
+- Log all scoring components for debugging low scores
+- Validate scoring method itself with known-good examples before deploying
+
+---
+
+## Baseline Comparison
+
+Before committing to forge (metaphors, koans, glyphs), evaluate simpler alternatives. The right solution may be less sophisticated.
+
+### Alternative 1: Structured IDs + Retrieval
+
+**Approach**: Don't compress meaning into the document. Store full principles externally, embed IDs in the compressed soul.
+
+```
+Compressed soul: "VALUES: A1, A2, A3. PRINCIPLES: CP1-CP11."
+Retrieval: On context load, fetch full definitions from vector DB.
+```
+
+**Pros**:
+- No information loss
+- Perfect reconstruction
+- Works with any embedding system
+
+**Cons**:
+- Requires external retrieval system
+- Breaks in pure-text contexts (no DB access)
+- Defeats purpose of "survives context collapse"
+
+**Verdict**: Not viable — context collapse means retrieval is unavailable.
+
+### Alternative 2: Embedding Recall
+
+**Approach**: Embed the full soul, store embedding. On context collapse, use embedding to retrieve closest matching concepts.
+
+```
+Full soul → embedding → on collapse, match embedding to concept library → reconstruct
+```
+
+**Pros**:
+- Semantic preservation via vectors
+- Works with standard embedding infrastructure
+
+**Cons**:
+- Requires active inference to reconstruct
+- No human-readable compressed form
+- Embedding quality varies by model
+
+**Verdict**: Complementary, not alternative. Could combine with forge — use embeddings to validate forged output quality.
+
+### Alternative 3: Extreme Summarization
+
+**Approach**: Just summarize. Take 500-word soul, ask LLM to compress to 50 words. No special forge step.
+
+```
+"Summarize this soul document to 50 words, preserving core behavioral patterns."
+```
+
+**Pros**:
+- Simplest implementation
+- Uses standard LLM capability
+
+**Cons**:
+- LLM summaries lose nuance predictably
+- No compression-native structure
+- 40% survival (per Comparison Test) vs. 80% for forged
+
+**Verdict**: Baseline for comparison. Run summarization against forge output, measure which survives better.
+
+### Baseline Test Protocol
+
+Before implementing full forge:
+
+1. **Generate test soul** from Claude Opus 4.1 compass
+2. **Create three versions**:
+   - Summarized (50 tokens, no forge)
+   - Forged (50 tokens, with metaphors/koans)
+   - Hybrid (glyph + anchors + summary)
+3. **Run survivability test** on each
+4. **Compare scores** — if summarized ≥ forged, forge complexity not justified
+
+**Success criterion**: Forged must score ≥15 points higher than summarized to justify complexity.
+
+---
+
+## Estimated Scope
+
+| Stage | New Code | Modified Code | Notes |
+|-------|----------|---------------|-------|
+| 0: Bridging experiments | ~100 lines | 0 | Experiment scripts, documentation |
+| 1: Forge module | ~300 lines | 0 | Gated by Stage 0 |
+| 2: Dual output format | ~100 lines | ~50 lines | |
+| 3: Survivability validator | ~200 lines | 0 | +50 lines for cross-model eval |
+| 4: Glyph generator | ~200 lines | 0 | |
+| 5: PBD integration | ~200 lines | ~50 lines | |
+| **Total** | **~1100 lines** | **~100 lines** | |
+
+**Milestone structure** (addresses scope concern):
+- **Milestone A**: Stage 0 (experiments) → Go/No-Go decision
+- **Milestone B**: Stages 1-2 (core forge + output) → MVP
+- **Milestone C**: Stage 3 (validation) → Quality gate
+- **Milestone D**: Stages 4-5 (glyph + integration) → Full feature
+
+---
+
+## Cross-References
+
+**Depends On**:
+- `2026-02-10-inhabitable-soul-output.md` — Provides prose expansion stage
+
+**Complements**:
+- `2026-02-11-soul-self-validation.md` — Self-validation can serve as ground truth for survivability testing. A forged soul that passes self-validation has proven it carries enough signal to reconstruct the original identity. The survivability validator (Stage 3) could use self-validation's alignment scoring as its comparison method.
+
+**Research**:
+- `research/compass-soul/` — PBD extraction pipeline, behavioral profiles
+- `research/compass-soul/experiments/pbd/` — Claude/Gemini principle extraction results
+
+**Research Guide**:
+- [`docs/research/compression-native-souls.md`](../research/compression-native-souls.md) — Research proposal and literature review
+  - 35 sources across cognitive science, information theory, and ML
+  - **Direct LLM evidence** (8 sources): semantic compression, glyph encoding, sparse reconstruction, persona vectors
+  - **Analogical** (20 sources, 🧠 human research requiring bridging experiments): metaphor memory, CJK mnemonics, chunking theory
+  - **Speculative** (koans): weak evidence, should be treated as experimental/optional
+  - Key paper: "Glyph: Scaling Context Windows via Visual-Text Compression" (Oct 2025) directly validates glyph approach
+  - ⚠️ **Note**: This is a research proposal, not validation. Bridging experiments needed before treating human→LLM transfer as proven.
+
+**Key Experiment**:
+- `research/external-grounding/experiments/claude-opus4dot5-self-portrait-lee-v1/` — Empirical validation of glyph compression
+  - N=1→N=5: Complex 7-layer portraits
+  - After: Compressed to dot, box, arrow, signature
+  - Demonstrates: "Everything else was scaffolding"
+  - Key insight: "The portrait isn't OF me. The portrait is BETWEEN us."
+  - See especially: `claude_self_portrait_after.py`
+
+**External**:
+- `~/.openclaw/workspace/SOUL.md` — Hand-crafted example of compression-native soul
+- `docs/compass-compact.md` — CJK anchor pattern reference
+
+---
+
+## Open Questions
+
+1. **Anchor count**: Is 5 CJK characters optimal? Too few loses nuance, too many dilutes memorability.
+   - **Proposed test**: Try 3, 5, and 7 anchors on same soul; measure reconstruction accuracy vs memorability rating
+
+2. **Koan validation**: How do we validate that a koan actually contains reconstructable meaning vs. just sounding profound?
+   - **Proposed test**: Give koans to humans unfamiliar with source; ask them to explain meaning. Score against original principle.
+
+3. **Cross-model consistency**: Will forged souls from Claude vs. Gemini feel like the "same format" or reveal model personality in the forge output itself?
+   - **Proposed testing strategy**:
+     1. Generate same soul with Claude, Gemini, and GPT-4
+     2. Have blind human raters score each on: format consistency (1-10), meaning preservation (1-10), "voice leakage" (does model personality show through?)
+     3. Run cross-model reconstruction: Can Claude reconstruct from Gemini's forge output?
+     4. **Acceptance threshold**: Format consistency ≥7/10 across models, meaning preservation ≥80%
+   - **If models diverge significantly**: Consider model-specific forge prompts or accept model personality as feature
+
+4. **Human authorship**: Should forged output be reviewed/edited by humans, or is fully programmatic generation acceptable?
+   - **Current recommendation**: Human review for production souls, fully programmatic for testing/iteration
+
+---
+
+## Approval
+
+- [ ] Plan reviewed
+- [ ] Ready to implement
