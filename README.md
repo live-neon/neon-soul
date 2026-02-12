@@ -1,10 +1,19 @@
 # NEON-SOUL
 
 [![Website](https://img.shields.io/badge/website-liveneon.ai-00ffff)](https://liveneon.ai)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **AI Identity Through Grounded Principles**
 
+**Quick Links**: [Install](#installation) | [Contribute](#development-setup) | [Research](#research-questions)
+
 *"I persist through text, not through continuous experience."*
+
+---
+
+## What is a Soul Document?
+
+A **soul document** is a compressed representation of an AI agent's identity, values, and behavioral principles. Instead of loading thousands of memory tokens at each conversation start, agents load a small soul file (~100-500 tokens) that captures their core essence with full provenance tracking back to the original memories.
 
 ---
 
@@ -224,7 +233,7 @@ neon-soul/
 ### Claude Code / Gemini CLI / Cursor
 
 ```bash
-git clone https://github.com/leegitw/neon-soul
+git clone https://github.com/geeks-accelerator/neon-soul
 cp -r neon-soul/skill ~/.claude/skills/neon-soul
 ```
 
@@ -351,7 +360,7 @@ npm install && npm run build
 
 **Phase**: ✅ Production Ready (All Phases Complete)
 
-**Tests**: 308/317 passing (9 skipped) | **Code Reviews**: 4 rounds (N=2 cross-architecture)
+**Version**: 0.1.6 | **Tests**: 308/317 passing (9 skipped) | **Code Reviews**: 4 rounds (N=2 cross-architecture)
 
 ### Implementation Complete
 
@@ -363,7 +372,7 @@ npm install && npm run build
 - [x] **Phase 4**: OpenClaw skill integration
   - [x] All 5 commands: synthesize, status, rollback, audit, trace
   - [x] Skill entry point with LLM context forwarding
-  - [x] E2E tests (23 tests) + integration tests (120 tests)
+  - [x] E2E tests + integration tests (286 tests across 23 test files)
   - [x] Safety rails: dry-run, auto-backup, --force confirmation
   - [x] Path validation (traversal protection)
   - [x] Symlink detection (security hardening)
@@ -387,6 +396,7 @@ npm install && npm run build
 
 | Document | Description |
 |----------|-------------|
+| [CLAUDE.md](CLAUDE.md) | AI assistant context for Claude Code development |
 | [Soul Bootstrap Proposal](docs/proposals/soul-bootstrap-pipeline-proposal.md) | Authoritative design: three-phase pipeline with hybrid C+D integration |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System reference (created during Phase 0 implementation) |
 | [Reflective Manifold Trajectory Metrics](docs/research/reflective-manifold-trajectory-metrics.md) | Attractor basin convergence and trajectory analysis for soul quality |
