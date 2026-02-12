@@ -1985,3 +1985,35 @@ Consolidated findings:
 - I2: Remove duplicate verification section (lines 1334-1359)
 - I3: Document weight composition formula in Stage 16
 - I5: Add Operator Experience section with workflow examples
+
+---
+
+## Future Enhancements (Post-17 Stages)
+
+### Bootstrap→Learn→Enforce for Signal Quality
+
+**Source**: `research/external-grounding/experiments/manifold-jump-unified-framework/`
+
+**Concept**: Apply regime detection methodology from the Manifold Jump Unified Framework to signal extraction. The framework prevents:
+- **Stuck regimes**: Low semantic shift, repetitive patterns (N=3 collapse)
+- **Chaotic regimes**: High variance, semantic drift, loss of coherence
+
+**Potential Stage 18: Signal Quality Regime Detection**
+
+| Component | Application to NEON-SOUL |
+|-----------|--------------------------|
+| Bootstrap phase | Collect baseline signal distributions (variance, clustering density) |
+| Learn phase | Derive percentile thresholds for "healthy" signal distributions |
+| Enforce phase | Flag signals in stuck (repetitive) or chaotic (high variance) regimes |
+
+**Benefits**:
+- Statistical thresholds (bootstrap CIs) instead of magic numbers
+- Detect repetitive signals that don't add information (stuck regime)
+- Detect high-variance signals that won't cluster well (chaotic regime)
+- Improve signal filtering quality before clustering
+
+**Prerequisites**: Complete Stages 1-17 first. This enhancement builds on the weighted clustering and orphan tracking already implemented.
+
+**Research basis**: 2,892 trials, 7 models, p<0.01 validation in manifold-jump research.
+
+**Estimated scope**: ~100-150 lines in new `signal-quality-detector.ts` module.
