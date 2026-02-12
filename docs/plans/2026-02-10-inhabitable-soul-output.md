@@ -352,6 +352,14 @@ Four stages, four commits, ~530 lines total.
 **Complements**:
 - `docs/plans/2026-02-10-emergence-facilitation.md` — Input quality (this plan fixes output quality)
 - `docs/plans/2026-02-10-essence-extraction.md` — Complete, preserved in new format
+- `docs/plans/2026-02-11-soul-grounding-section.md` — Adds symbolic grounding for AI cognitive stability (deferred)
+
+**Future Extensions**:
+- **Soul Essence Compression**: The `claude_self_portrait_after.py` experiment in
+  `research/external-grounding/experiments/claude-opus4dot5-self-portrait-lee-v1/` demonstrates
+  complex→essential compression (7 layers → dot, box, arrow, signature). This could inform a
+  "Stage 5: Soul Essence" that generates an ultra-compact identity representation beyond the
+  closing tagline. See experiment README for the N=5→After progression.
 
 **Reviews**:
 - `docs/reviews/2026-02-10-inhabitable-soul-output-codex.md` — Codex/GPT-5.1 review
