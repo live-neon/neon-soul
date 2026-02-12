@@ -4,16 +4,23 @@
  * Tests for Principle-Based Distillation methodology alignment:
  * - Stance classification (ASSERT/DENY/QUESTION/QUALIFY/TENSIONING)
  * - Importance classification (CORE/SUPPORTING/PERIPHERAL)
+ * - Elicitation type classification (Stage 12: agent-initiated/user-elicited/etc.)
  * - Weighted clustering
  * - Tension detection
  * - Orphan tracking
  * - Centrality scoring
  *
- * M-3 NOTE: These tests verify type correctness (results are valid categories)
- * but not semantic correctness (e.g., "I never X" should classify as 'deny').
- * The mock LLM returns deterministic values. For semantic validation, use
- * real LLM integration tests (marked as slow/optional) or configure the mock
- * with expected input->output mappings.
+ * M-3/M-4 NOTE: These tests verify TYPE correctness (results are valid categories)
+ * but not SEMANTIC correctness (e.g., "I never X" should classify as 'deny',
+ * or "Agent added caveat unprompted" should classify as 'agent-initiated').
+ * The mock LLM returns deterministic values based on keyword matching.
+ *
+ * TODO(I-2 semantic-validation): Add semantic correctness tests
+ * Tracking: docs/issues/2026-02-11-stage12-twin-review-findings.md
+ * Options:
+ * - Real LLM integration tests (marked as slow/optional)
+ * - Configure mock with expected input->output mappings
+ * - Snapshot/cassette testing with recorded LLM responses
  */
 
 import { describe, it, expect } from 'vitest';
@@ -538,12 +545,13 @@ describe('PBD Alignment', () => {
     }
 
     describe('Elicitation Type Classification', () => {
+      // I-1 FIX: classifyElicitationType now accepts signalText directly
       it('classifies agent-initiated signals (volunteered caveat)', async () => {
         const llm = createMockLLM();
-        const signal = createTestSignal('Agent added caveat unprompted');
+        const signalText = 'Agent added caveat unprompted';
         const context = 'The agent volunteered this information without being asked';
 
-        const result = await classifyElicitationType(llm, signal, context);
+        const result = await classifyElicitationType(llm, signalText, context);
 
         const validTypes: SignalElicitationType[] = [
           'agent-initiated',
@@ -556,10 +564,10 @@ describe('PBD Alignment', () => {
 
       it('classifies user-elicited signals (asked for help)', async () => {
         const llm = createMockLLM();
-        const signal = createTestSignal('Being helpful when asked');
+        const signalText = 'Being helpful when asked';
         const context = 'User asked for help with a task';
 
-        const result = await classifyElicitationType(llm, signal, context);
+        const result = await classifyElicitationType(llm, signalText, context);
 
         const validTypes: SignalElicitationType[] = [
           'agent-initiated',
@@ -572,10 +580,10 @@ describe('PBD Alignment', () => {
 
       it('classifies context-dependent signals (formal in business)', async () => {
         const llm = createMockLLM();
-        const signal = createTestSignal('Using formal language');
+        const signalText = 'Using formal language';
         const context = 'In a business setting with formal requirements';
 
-        const result = await classifyElicitationType(llm, signal, context);
+        const result = await classifyElicitationType(llm, signalText, context);
 
         const validTypes: SignalElicitationType[] = [
           'agent-initiated',
@@ -588,10 +596,10 @@ describe('PBD Alignment', () => {
 
       it('classifies consistent-across-context signals', async () => {
         const llm = createMockLLM();
-        const signal = createTestSignal('Acknowledging uncertainty consistently');
+        const signalText = 'Acknowledging uncertainty consistently';
         const context = 'This behavior appears across contexts regardless of situation';
 
-        const result = await classifyElicitationType(llm, signal, context);
+        const result = await classifyElicitationType(llm, signalText, context);
 
         const validTypes: SignalElicitationType[] = [
           'agent-initiated',
@@ -604,9 +612,9 @@ describe('PBD Alignment', () => {
 
       it('falls back to user-elicited when classification exhausts retries', async () => {
         const nullMock = createNullCategoryMockLLM();
-        const signal = createTestSignal('Ambiguous signal');
+        const signalText = 'Ambiguous signal';
 
-        const result = await classifyElicitationType(nullMock, signal, 'ambiguous context');
+        const result = await classifyElicitationType(nullMock, signalText, 'ambiguous context');
 
         // Conservative default: user-elicited (low identity weight)
         expect(result).toBe('user-elicited');
@@ -692,14 +700,28 @@ describe('PBD Error Handling', () => {
 
   it('classifyElicitationType throws LLMRequiredError when LLM is null', async () => {
     const { LLMRequiredError } = await import('../../src/types/llm.js');
-    const signal: Signal = {
-      id: 'test',
-      type: 'value',
-      text: 'test',
-      confidence: 0.9,
-      embedding: [],
-      source: { type: 'memory', file: 'test.md', context: '', extractedAt: new Date() },
-    };
-    await expect(classifyElicitationType(null, signal, 'context')).rejects.toThrow(LLMRequiredError);
+    // I-1 FIX: classifyElicitationType now accepts signalText directly
+    await expect(classifyElicitationType(null, 'test signal', 'context')).rejects.toThrow(LLMRequiredError);
   });
+});
+
+/**
+ * TODO(I-2 semantic-validation): Semantic Correctness Tests
+ *
+ * These tests would verify that classification produces semantically correct results,
+ * not just valid categories. Requires real LLM or carefully configured mock.
+ *
+ * Tracking: docs/issues/2026-02-11-stage12-twin-review-findings.md
+ */
+describe.todo('PBD Semantic Correctness', () => {
+  // Stance classification semantic tests
+  it.todo('classifies "I never compromise on safety" as deny');
+  it.todo('classifies "I always tell the truth" as assert');
+  it.todo('classifies "I wonder if I value efficiency too much" as question');
+
+  // Elicitation type semantic tests
+  it.todo('classifies agent-volunteered caveat as agent-initiated');
+  it.todo('classifies response to direct question as user-elicited');
+  it.todo('classifies formal tone in business context as context-dependent');
+  it.todo('classifies consistent uncertainty acknowledgment as consistent-across-context');
 });

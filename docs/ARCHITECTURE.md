@@ -239,6 +239,23 @@ Implementation: `src/lib/semantic-classifier.ts` (`classifyStance`)
 
 Implementation: `src/lib/semantic-classifier.ts` (`classifyImportance`)
 
+### Elicitation Type Classification
+
+| Elicitation Type | Meaning | Weight |
+|------------------|---------|--------|
+| **consistent-across-context** | Behavior persists regardless of context | 2.0x |
+| **agent-initiated** | Agent volunteered unprompted | 1.5x |
+| **user-elicited** | Response to user request | 0.5x |
+| **context-dependent** | Adapted to specific context | 0.0x (excluded) |
+
+Mitigates "usage-bias problem" where identity reflects usage patterns rather than actual preferences.
+
+**Known Limitation (C-1)**: For memory file extraction, elicitation type classification relies on
+linguistic markers (~100-char context) rather than full conversation turns. See `signal-source-classifier.ts`
+module header for details.
+
+Implementation: `src/lib/signal-source-classifier.ts` (`classifyElicitationType`)
+
 ---
 
 ## Synthesis Features
