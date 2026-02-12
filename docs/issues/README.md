@@ -52,6 +52,8 @@ See parent: `/docs/issues/README.md`
 | [PBD Alignment Implementation](../plans/2026-02-10-pbd-alignment.md) | 🟡 in progress | **high** |
 | [PBD Alignment Stages 1-11 Code Review](2026-02-11-pbd-alignment-stages1-11-code-review-findings.md) | ✅ resolved | **high** |
 | [PBD Alignment Stages 1-11 Twin Review](2026-02-11-pbd-alignment-stages1-11-twin-review-findings.md) | ✅ resolved | medium |
+| [Stage 12 Code Review Findings](2026-02-11-stage12-code-review-findings.md) | ✅ resolved | **high** |
+| [Stage 12 Twin Review Findings](2026-02-11-stage12-twin-review-findings.md) | ✅ resolved | medium |
 
 ---
 
