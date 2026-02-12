@@ -18,6 +18,7 @@ import {
   classifySignalType as semanticClassifySignalType,
   classifyStance as semanticClassifyStance,
   classifyImportance as semanticClassifyImportance,
+  sanitizeForPrompt, // M-1 FIX: Use canonical export
 } from './semantic-classifier.js';
 import { classifyElicitationType } from './signal-source-classifier.js';
 
@@ -49,14 +50,7 @@ function generateId(): string {
 }
 
 // TR-4: Using shared requireLLM from llm.ts (removed local duplicate)
-
-/**
- * IM-7 FIX: Sanitize user input to prevent prompt injection.
- * Escapes XML-like tags in user content.
- */
-function sanitizeForPrompt(text: string): string {
-  return text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
+// M-1 FIX: Using shared sanitizeForPrompt from semantic-classifier.ts (removed local duplicate)
 
 /**
  * Detect if a line is an identity signal using LLM.
@@ -195,33 +189,23 @@ export async function extractSignalsFromContent(
     const batch = confirmedSignals.slice(i, i + BATCH_SIZE);
     const batchResults = await Promise.all(
       batch.map(async ({ candidate, detection }) => {
-        // Create signal source first (needed for elicitation context)
+        // Create signal source (needed for provenance and elicitation context)
         const signalSource = createSignalSource(
           source.file,
           candidate.lineNum,
           candidate.originalLine.slice(0, 100)
         );
 
-        // Build a temporary signal for elicitation classification
-        // (elicitationType classification needs the signal object)
-        const tempSignal = {
-          id: '',
-          type: 'value' as const,
-          text: candidate.text,
-          confidence: 0,
-          embedding: [],
-          source: signalSource,
-        };
-
         // Parallelize dimension, signalType, stance, importance, elicitationType, and embedding
         // PBD alignment: Added stance and importance (Stage 2 & 3), elicitationType (Stage 12)
+        // I-1 FIX: classifyElicitationType now accepts signalText directly (no tempSignal needed)
         const [dimension, signalType, stance, importance, elicitationType, embedding] =
           await Promise.all([
             semanticClassifyDimension(llm, candidate.text),
             semanticClassifySignalType(llm, candidate.text),
             semanticClassifyStance(llm, candidate.text),
             semanticClassifyImportance(llm, candidate.text),
-            classifyElicitationType(llm, tempSignal, signalSource.context),
+            classifyElicitationType(llm, candidate.text, signalSource.context),
             embed(candidate.text),
           ]);
 
