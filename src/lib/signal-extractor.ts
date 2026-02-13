@@ -16,7 +16,11 @@ import type { MemoryFile } from './memory-walker.js';
 import {
   classifyDimension as semanticClassifyDimension,
   classifySignalType as semanticClassifySignalType,
+  classifyStance as semanticClassifyStance,
+  classifyImportance as semanticClassifyImportance,
+  sanitizeForPrompt, // M-1 FIX: Use canonical export
 } from './semantic-classifier.js';
+import { classifyElicitationType } from './signal-source-classifier.js';
 
 export interface ExtractionConfig {
   promptTemplate: string; // With {content}, {path}, {category} placeholders
@@ -46,14 +50,7 @@ function generateId(): string {
 }
 
 // TR-4: Using shared requireLLM from llm.ts (removed local duplicate)
-
-/**
- * IM-7 FIX: Sanitize user input to prevent prompt injection.
- * Escapes XML-like tags in user content.
- */
-function sanitizeForPrompt(text: string): string {
-  return text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
+// M-1 FIX: Using shared sanitizeForPrompt from semantic-classifier.ts (removed local duplicate)
 
 /**
  * Detect if a line is an identity signal using LLM.
@@ -99,8 +96,12 @@ const DEFAULT_CONFIDENCE_THRESHOLD = 0.5;
  * Batch size for parallel LLM processing.
  * Configurable via NEON_SOUL_LLM_CONCURRENCY env var.
  * Default: 10 (limits concurrent LLM calls to ~30: 10 signals × 3 calls each)
+ *
+ * C-1 FIX: Validate lower bound to prevent infinite loops.
+ * Invalid values (0, negative, NaN) fall back to default.
  */
-const BATCH_SIZE = parseInt(process.env.NEON_SOUL_LLM_CONCURRENCY ?? '10', 10);
+const RAW_BATCH_SIZE = parseInt(process.env['NEON_SOUL_LLM_CONCURRENCY'] ?? '10', 10);
+const BATCH_SIZE = Number.isNaN(RAW_BATCH_SIZE) || RAW_BATCH_SIZE < 1 ? 10 : RAW_BATCH_SIZE;
 
 /**
  * Extract signals from markdown content using LLM-based semantic detection.
@@ -188,18 +189,25 @@ export async function extractSignalsFromContent(
     const batch = confirmedSignals.slice(i, i + BATCH_SIZE);
     const batchResults = await Promise.all(
       batch.map(async ({ candidate, detection }) => {
-        // Parallelize dimension, signalType, and embedding (independent operations)
-        const [dimension, signalType, embedding] = await Promise.all([
-          semanticClassifyDimension(llm, candidate.text),
-          semanticClassifySignalType(llm, candidate.text),
-          embed(candidate.text),
-        ]);
-
+        // Create signal source (needed for provenance and elicitation context)
         const signalSource = createSignalSource(
           source.file,
           candidate.lineNum,
           candidate.originalLine.slice(0, 100)
         );
+
+        // Parallelize dimension, signalType, stance, importance, elicitationType, and embedding
+        // PBD alignment: Added stance and importance (Stage 2 & 3), elicitationType (Stage 12)
+        // I-1 FIX: classifyElicitationType now accepts signalText directly (no tempSignal needed)
+        const [dimension, signalType, stance, importance, elicitationType, embedding] =
+          await Promise.all([
+            semanticClassifyDimension(llm, candidate.text),
+            semanticClassifySignalType(llm, candidate.text),
+            semanticClassifyStance(llm, candidate.text),
+            semanticClassifyImportance(llm, candidate.text),
+            classifyElicitationType(llm, candidate.text, signalSource.context),
+            embed(candidate.text),
+          ]);
 
         return {
           id: generateId(),
@@ -209,6 +217,9 @@ export async function extractSignalsFromContent(
           embedding,
           source: signalSource,
           dimension,
+          stance, // PBD Stage 2
+          importance, // PBD Stage 3
+          elicitationType, // PBD Stage 12
         };
       })
     );

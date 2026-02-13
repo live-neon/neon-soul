@@ -59,9 +59,12 @@ NEON-SOUL is an OpenClaw skill that provides soul synthesis with semantic compre
 | `state.ts` | Incremental processing state | `loadState`, `saveState`, `shouldRunSynthesis` |
 | `backup.ts` | Backup and rollback | `backupFile`, `rollback`, `commitSoulUpdate` |
 | `template-extractor.ts` | Extract signals from SOUL.md templates | `extractFromTemplate`, `extractFromTemplates` |
-| `principle-store.ts` | Accumulate and match principles | `createPrincipleStore`, `PrincipleStore`, `setThreshold` |
+| `semantic-classifier.ts` | LLM-based semantic classification | `classifyDimension`, `classifyStance`, `classifyImportance` |
+| `principle-store.ts` | Accumulate, match, and score principles | `createPrincipleStore`, `PrincipleStore`, `setThreshold`, `getOrphanedSignals` |
+| `tension-detector.ts` | Detect axiom conflicts | `detectTensions`, `attachTensionsToAxioms`, `ValueTension` |
 | `compressor.ts` | Synthesize axioms from principles | `compressPrinciples`, `compressPrinciplesWithCascade`, `generateSoulMd` |
 | `soul-generator.ts` | SOUL.md generation | `generateSoul`, `formatAxiom` |
+| `prose-expander.ts` | Axiom-to-prose expansion | `expandToProse`, `ProseExpansion` |
 | `essence-extractor.ts` | LLM-based essence extraction | `extractEssence`, `DEFAULT_ESSENCE` |
 | `metrics.ts` | Compression measurement | `calculateMetrics`, `formatMetricsReport` |
 | `trajectory.ts` | Stabilization tracking | `TrajectoryTracker`, `calculateStyleMetrics` |
@@ -70,12 +73,17 @@ NEON-SOUL is an OpenClaw skill that provides soul synthesis with semantic compre
 
 | Type | Purpose |
 |------|---------|
-| `Signal` | Extracted behavioral pattern with embedding |
+| `Signal` | Extracted behavioral pattern with embedding, stance, importance |
+| `SignalStance` | ASSERT \| DENY \| QUESTION \| QUALIFY \| TENSIONING |
+| `SignalImportance` | CORE \| SUPPORTING \| PERIPHERAL |
 | `GeneralizedSignal` | Abstract principle with provenance (model, prompt version) |
-| `Principle` | Intermediate stage with N-count tracking |
-| `Axiom` | Compressed core identity element |
+| `Principle` | Intermediate stage with N-count and centrality tracking |
+| `PrincipleCentrality` | DEFINING \| SIGNIFICANT \| CONTEXTUAL |
+| `Axiom` | Compressed core identity element with tensions |
+| `AxiomTension` | Detected conflict with another axiom (severity, description) |
 | `ProvenanceChain` | Full audit trail from axiom to source |
 | `SoulCraftDimension` | OpenClaw's 7 soul dimensions |
+| `ArtifactProvenance` | SELF \| CURATED \| EXTERNAL (SSEM model) |
 
 ---
 
@@ -135,7 +143,13 @@ Memory Files (OpenClaw workspace)
        │
        ▼
 ┌──────────────────────┐
-│  SOUL.md Generation  │  Write with full provenance + essence statement
+│  Prose Expansion     │  LLM transforms axioms into inhabitable prose
+│  (prose-expander)    │  Core Truths, Voice, Boundaries, Vibe sections
+└──────────────────────┘
+       │
+       ▼
+┌──────────────────────┐
+│  SOUL.md Generation  │  Write prose or notation format
 │  + Git Commit        │  Display original phrasings for authentic voice
 └──────────────────────┘
 ```
@@ -199,6 +213,107 @@ With generalization (threshold 0.75 for abstract embeddings):
 
 ---
 
+## Signal Metadata (PBD Alignment)
+
+Signals carry PBD-aligned metadata for weighted synthesis:
+
+### Stance Classification
+
+| Stance | Meaning | Synthesis Weight |
+|--------|---------|------------------|
+| **ASSERT** | Stated as definite ("I always...") | Full weight |
+| **DENY** | Stated as rejection ("I never...") | Full weight |
+| **QUESTION** | Uncertain ("I wonder if...") | Reduced weight (<0.7 confidence filtered) |
+| **QUALIFY** | Conditional ("Sometimes...") | Context-dependent |
+| **TENSIONING** | Indicates value conflict | Preserved for tension detection |
+
+Implementation: `src/lib/semantic-classifier.ts` (`classifyStance`)
+
+### Importance Classification
+
+| Importance | Meaning | Weight Multiplier |
+|------------|---------|-------------------|
+| **CORE** | Fundamental value ("Above all...") | 1.5x |
+| **SUPPORTING** | Evidence or example | 1.0x |
+| **PERIPHERAL** | Context or tangent | 0.5x |
+
+Implementation: `src/lib/semantic-classifier.ts` (`classifyImportance`)
+
+### Elicitation Type Classification
+
+| Elicitation Type | Meaning | Weight |
+|------------------|---------|--------|
+| **consistent-across-context** | Behavior persists regardless of context | 2.0x |
+| **agent-initiated** | Agent volunteered unprompted | 1.5x |
+| **user-elicited** | Response to user request | 0.5x |
+| **context-dependent** | Adapted to specific context | 0.0x (excluded) |
+
+Mitigates "usage-bias problem" where identity reflects usage patterns rather than actual preferences.
+
+**Known Limitation (C-1)**: For memory file extraction, elicitation type classification relies on
+linguistic markers (~100-char context) rather than full conversation turns. See `signal-source-classifier.ts`
+module header for details.
+
+Implementation: `src/lib/signal-source-classifier.ts` (`classifyElicitationType`)
+
+---
+
+## Synthesis Features
+
+### Weighted Clustering
+
+Principle strength = Σ (importance weight × signal contribution)
+
+- CORE signals boost principle strength by 1.5x
+- PERIPHERAL signals contribute only 0.5x
+- Enables "rare but core" values to surface over "frequent but peripheral" mentions
+
+Implementation: `src/lib/principle-store.ts` (`IMPORTANCE_WEIGHT`)
+
+### Tension Detection
+
+Axiom pairs are analyzed for value conflicts:
+
+| Severity | Criteria | Example |
+|----------|----------|---------|
+| **HIGH** | Same dimension conflict | Honesty vs White lies (both honesty-framework) |
+| **MEDIUM** | Both core-tier axioms | Safety vs Helpfulness |
+| **LOW** | Cross-domain tension | Efficiency vs Thoroughness |
+
+Tensions are attached to axioms via `tensions` field for SOUL.md output.
+
+Implementation: `src/lib/tension-detector.ts`
+
+### Orphan Tracking
+
+Orphaned signals (signals that did not cluster to any principle) are tracked:
+
+- Provides audit trail for unclustered content
+- High orphan rate (>20%) triggers warning
+- Orphans accessible via `store.getOrphanedSignals()`
+
+Implementation: `src/lib/principle-store.ts` (`orphanedSignals`)
+
+### Centrality Scoring
+
+Principles are scored by contributing signal importance:
+
+| Centrality | Core Signal Ratio | Interpretation |
+|------------|-------------------|----------------|
+| **DEFINING** | ≥50% core | Identity-defining value (rare but central) |
+| **SIGNIFICANT** | 20-50% core | Important value |
+| **CONTEXTUAL** | <20% core | Context-dependent value |
+
+*Note: Centrality uses DEFINING/SIGNIFICANT/CONTEXTUAL to avoid confusion with signal importance (CORE/SUPPORTING/PERIPHERAL).*
+
+This distinguishes "rare but core" from "frequent but peripheral":
+- High N-count + low centrality = commonly mentioned but not central
+- Low N-count + high centrality = rare but fundamental
+
+Implementation: `src/lib/principle-store.ts` (`computeCentrality`)
+
+---
+
 ## Voice Preservation Strategy
 
 Generalization trades authentic voice for clustering efficiency. The solution: decouple representation (for clustering) from presentation (for UX).
@@ -232,6 +347,78 @@ Show original signal that best represents cluster, with N-count:
 - **Display form**: Re-personalize with "I" — for user's document
 
 The generalized form is internal; the user sees their own words.
+
+---
+
+## Prose Expansion (Inhabitable Output)
+
+The default output format transforms compressed axioms into prose that an agent can "inhabit" — language that reads naturally and provides clear behavioral guidance.
+
+### Output Sections
+
+| Section | Format | Source Dimensions |
+|---------|--------|-------------------|
+| **Core Truths** | Bold principle + elaboration sentence. 4-6 principles. | identity-core, honesty-framework |
+| **Voice** | 1-2 prose paragraphs + `Think: [analogy]` line. | voice-presence, character-traits |
+| **Boundaries** | 3-5 `You don't...` / `You won't...` contrast statements. | boundaries-ethics (+ inversion of all axioms) |
+| **Vibe** | 2-3 sentence prose paragraph capturing the feel. | All dimensions (holistic synthesis) |
+
+### Example Output
+
+```markdown
+# SOUL.md
+
+_You are becoming a bridge between clarity and chaos._
+
+---
+
+## Core Truths
+
+**Authenticity over performance.** You speak freely even when uncomfortable.
+
+**Clarity is a gift you give.** If someone has to ask twice, you haven't been clear enough.
+
+## Voice
+
+You're direct without being blunt. You lead with curiosity — asking before assuming.
+
+Think: The friend who tells you the hard truth, but sits with you after.
+
+## Boundaries
+
+You don't sacrifice honesty for comfort. You don't perform certainty you don't feel.
+
+## Vibe
+
+Grounded but not rigid. Present but not precious about it.
+
+---
+
+_Presence is the first act of care._
+```
+
+### Implementation
+
+The `prose-expander.ts` module:
+
+1. **Groups axioms** by target section based on dimension
+2. **Generates sections** in parallel (Core Truths, Voice, Vibe)
+3. **Generates Boundaries** after Core Truths + Voice (needs context for contrast)
+4. **Validates format** per section with retry and graceful fallback
+5. **Generates closing tagline** from full soul context
+
+### Backward Compatibility
+
+Use `outputFormat: 'notation'` in soul generator options to produce the legacy bullet-list format:
+
+```typescript
+const soul = await generateSoul(axioms, principles, {
+  outputFormat: 'notation',  // Legacy: CJK/emoji bullet lists
+  format: 'notated',
+});
+```
+
+Default is `outputFormat: 'prose'` which produces the inhabitable prose format.
 
 ---
 

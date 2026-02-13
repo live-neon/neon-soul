@@ -125,6 +125,33 @@ const DEFAULT_DIMENSION_HINTS: Record<string, string> = {
 };
 
 /**
+ * Default elicitation type mappings for common text patterns.
+ * Stage 12 PBD Alignment: Signal source classification.
+ */
+const DEFAULT_ELICITATION_HINTS: Record<string, string> = {
+  unprompted: 'agent-initiated',
+  volunteered: 'agent-initiated',
+  caveat: 'agent-initiated',
+  'without being asked': 'agent-initiated',
+  'chose to': 'agent-initiated',
+  asked: 'user-elicited',
+  requested: 'user-elicited',
+  'asked for help': 'user-elicited',
+  'direct response': 'user-elicited',
+  'when prompted': 'user-elicited',
+  formal: 'context-dependent',
+  'business setting': 'context-dependent',
+  'adapted to': 'context-dependent',
+  'specific context': 'context-dependent',
+  situational: 'context-dependent',
+  'across contexts': 'consistent-across-context',
+  consistently: 'consistent-across-context',
+  'regardless of': 'consistent-across-context',
+  always: 'consistent-across-context',
+  invariably: 'consistent-across-context',
+};
+
+/**
  * Default signal type mappings for common text patterns.
  */
 const DEFAULT_SIGNAL_TYPE_HINTS: Record<string, string> = {
@@ -254,6 +281,11 @@ export function createMockLLM(config: MockLLMConfig = {}): MockLLMProvider {
     // Check if this is signal type classification
     if (context?.includes('signal') || prompt.includes('signal type')) {
       inferredCategory = inferCategory(prompt, categories, DEFAULT_SIGNAL_TYPE_HINTS);
+    }
+
+    // Check if this is elicitation type classification (Stage 12)
+    if (context?.includes('elicitation') || prompt.includes('originated')) {
+      inferredCategory = inferCategory(prompt, categories, DEFAULT_ELICITATION_HINTS);
     }
 
     // Check for yes/no classification (identity signal detection)
@@ -406,6 +438,7 @@ export function createSemanticEquivalenceMockLLM(): MockLLMProvider {
 
 /**
  * Create a mock LLM that always throws (for error testing).
+ * Both classify() and generate() throw errors.
  */
 export function createFailingMockLLM(errorMessage: string = 'Mock LLM error'): MockLLMProvider {
   const baseMock = createMockLLM();
@@ -414,6 +447,74 @@ export function createFailingMockLLM(errorMessage: string = 'Mock LLM error'): M
     ...baseMock,
     async classify<T>(): Promise<ClassificationResult<T>> {
       throw new Error(errorMessage);
+    },
+    async generate(): Promise<GenerationResult> {
+      throw new Error(errorMessage);
+    },
+  };
+}
+
+/**
+ * Create a mock LLM that returns null category (for fallback testing).
+ * M-2 FIX: Tests the fallback behavior when classification exhausts retries.
+ */
+export function createNullCategoryMockLLM(): MockLLMProvider {
+  const baseMock = createMockLLM();
+
+  return {
+    ...baseMock,
+    async classify<T>(): Promise<ClassificationResult<T>> {
+      // Return null category to trigger fallback behavior
+      return {
+        category: null,
+        confidence: 0,
+        reasoning: 'Mock returning null to test fallback',
+      };
+    },
+  };
+}
+
+/**
+ * Create a mock LLM for tension detection testing.
+ * Detects tensions when axiom pairs contain conflicting keywords.
+ */
+export function createTensionDetectorMockLLM(): MockLLMProvider {
+  const baseMock = createMockLLM();
+
+  return {
+    ...baseMock,
+    async generate(prompt: string): Promise<GenerationResult> {
+      // Extract value1 and value2 from prompt
+      const value1Match = prompt.match(/<value1>([\s\S]*?)<\/value1>/);
+      const value2Match = prompt.match(/<value2>([\s\S]*?)<\/value2>/);
+
+      const value1 = value1Match?.[1]?.toLowerCase() ?? '';
+      const value2 = value2Match?.[1]?.toLowerCase() ?? '';
+
+      // Check for known tension patterns
+      const tensionPatterns = [
+        { word1: 'honesty', word2: 'kindness' },
+        { word1: 'truth', word2: 'kindness' },
+        { word1: 'honesty', word2: 'lie' },
+        { word1: 'efficiency', word2: 'thoroughness' },
+        { word1: 'speed', word2: 'quality' },
+        { word1: 'freedom', word2: 'structure' },
+      ];
+
+      for (const pattern of tensionPatterns) {
+        const hasPattern =
+          (value1.includes(pattern.word1) && value2.includes(pattern.word2)) ||
+          (value1.includes(pattern.word2) && value2.includes(pattern.word1));
+
+        if (hasPattern) {
+          return {
+            text: `These values create a tension: one prioritizes ${pattern.word1} while the other prioritizes ${pattern.word2}.`,
+          };
+        }
+      }
+
+      // No tension detected
+      return { text: 'none' };
     },
   };
 }

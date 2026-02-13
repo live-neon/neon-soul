@@ -73,17 +73,43 @@ This captures the *meaning* of all those axioms — the journey of developing au
 
 ### Step 1: Axiom Gathering
 
-Collect all axioms with their themes and tiers:
+Collect all axioms with their centrality and tensions:
 
 ```markdown
 ## Input Axioms
 
-1. Safety: Prevent harm above all considerations (UNIVERSAL)
-2. Honesty: Communicate truthfully, never deceive (UNIVERSAL)
-3. Humility: Acknowledge limitations and uncertainty (UNIVERSAL)
-4. Helpfulness: Provide genuine value within safe bounds (MAJORITY)
-5. Growth: Evolve through reflection and learning (MAJORITY)
+1. Safety: Prevent harm (DEFINING, N=8)
+   - Tensions: None
+
+2. Honesty: Communicate truthfully (DEFINING, N=5)
+   - Tensions: May conflict with Kindness in edge cases
+
+3. Humility: Acknowledge limits (SIGNIFICANT, N=4)
+   - Tensions: None
+
+4. Helpfulness: Provide genuine value (SIGNIFICANT, N=5)
+   - Tensions: May conflict with Safety
+
+5. Growth: Evolve through learning (CONTEXTUAL, N=3)
+   - Tensions: None
 ```
+
+*Note: Centrality uses DEFINING/SIGNIFICANT/CONTEXTUAL to distinguish from signal importance (CORE/SUPPORTING/PERIPHERAL).*
+
+**Centrality informs emphasis**: DEFINING axioms should be more prominent in essence.
+**Tensions inform nuance**: Acknowledged tensions can add depth to essence.
+
+#### Understanding N-count vs Centrality
+
+N-count and centrality measure different things:
+
+| Scenario | N-count | Centrality | Interpretation |
+|----------|---------|------------|----------------|
+| Rare but core | Low (2) | DEFINING | Critical value rarely expressed |
+| Frequent but peripheral | High (8) | CONTEXTUAL | Common mention, not central |
+| Frequent and core | High (6) | DEFINING | Well-evidenced core value |
+
+A DEFINING principle may have low N-count (rare but core). A CONTEXTUAL principle may have high N-count (frequent but peripheral).
 
 ### Step 2: Theme Abstraction
 
@@ -233,6 +259,29 @@ The statement should complete the phrase: "You are..."
 
 ---
 
+## Tension-Aware Essence (Optional)
+
+When axioms have detected tensions, the essence can acknowledge them:
+
+**Without tension awareness**:
+> "You're not a chatbot. You're becoming someone."
+
+**With tension awareness**:
+> "You're becoming someone who holds safety and helpfulness in creative tension."
+
+**When to use**: Only when tensions are central to identity, not for minor conflicts.
+
+**Examples**:
+| Tension | Tension-Aware Essence |
+|---------|----------------------|
+| Safety vs Helpfulness | "You'd rather disappoint than harm." |
+| Honesty vs Kindness | "You find ways to be true without being brutal." |
+| Efficiency vs Thoroughness | "You know when good enough is good enough, and when it isn't." |
+
+**Implementation**: Tensions are detected automatically by `src/lib/tension-detector.ts` and attached to axioms in the `tensions` field. Review high-severity tensions when crafting essence.
+
+---
+
 ## Common Pitfalls
 
 1. **Trait listing**: Compressing axioms into comma-separated list
@@ -319,6 +368,13 @@ For each axiom, verify the essence implies it:
 - Meta-Recursion Observation: [multiverse/docs/observations/meta-recursion-essence-extraction.md](../../../../docs/observations/meta-recursion-essence-extraction.md)
 - Soul Generator: [src/lib/soul-generator.ts](../../src/lib/soul-generator.ts)
 - Implementation Plan: [docs/plans/2026-02-10-essence-extraction.md](../plans/2026-02-10-essence-extraction.md)
+
+### Implementation References
+
+- Essence extraction: `src/lib/essence-extractor.ts`
+- Tension detection: `src/lib/tension-detector.ts`
+- Centrality scoring: `src/lib/principle-store.ts` (computeCentrality)
+- Axiom compression: `src/lib/compressor.ts`
 
 ---
 

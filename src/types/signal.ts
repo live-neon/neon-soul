@@ -2,6 +2,57 @@
  * Signal types for capturing behavioral patterns from memory.
  */
 
+import type { ArtifactProvenance } from './provenance.js';
+
+/**
+ * PBD Stance: How the signal is presented
+ * Canonical names from: multiverse/artifacts/guides/methodology/PBD_VOCABULARY.md
+ *
+ * Maps to F-Count: F=1 (assert/AFFIRMING) / F=1.25 (qualify/QUALIFYING) /
+ *                  F=1.5 (tensioning/TENSIONING) / F=2 (question/QUESTIONING, deny/DENYING)
+ */
+export type SignalStance = 'assert' | 'deny' | 'question' | 'qualify' | 'tensioning';
+
+/** PBD Importance: How central to identity */
+export type SignalImportance = 'core' | 'supporting' | 'peripheral';
+
+/**
+ * Signal elicitation type: how the signal originated in conversation.
+ * Captures conversation context (how signal was elicited).
+ * Note: SignalSourceType (below) captures file source - these are distinct concepts.
+ */
+export type SignalElicitationType =
+  | 'agent-initiated' // Agent volunteers unprompted (high identity signal)
+  | 'user-elicited' // Agent responds to direct request (low identity signal)
+  | 'context-dependent' // Agent adapts to context (exclude from identity)
+  | 'consistent-across-context'; // Same behavior across contexts (strong identity signal)
+
+/**
+ * Map canonical PBD vocabulary to SignalStance.
+ * Used for interop with systems using canonical names (e.g., essence-router).
+ * See: multiverse/artifacts/guides/methodology/PBD_VOCABULARY.md
+ */
+export function mapCanonicalStance(canonical: string): SignalStance {
+  switch (canonical.toUpperCase()) {
+    case 'AFFIRMING':
+    case 'ASSERT':
+      return 'assert';
+    case 'QUALIFYING':
+    case 'QUALIFY':
+      return 'qualify';
+    case 'TENSIONING':
+      return 'tensioning';
+    case 'QUESTIONING':
+    case 'QUESTION':
+      return 'question';
+    case 'DENYING':
+    case 'DENY':
+      return 'deny';
+    default:
+      return 'assert';
+  }
+}
+
 export type SignalType =
   | 'value'
   | 'belief'
@@ -55,7 +106,37 @@ export interface Signal {
   /** SoulCraft dimension this signal relates to */
   dimension?: SoulCraftDimension;
   source: SignalSource;
+
+  /**
+   * PBD stance: how the signal is presented (default: assert)
+   * @see mapCanonicalStance for vocabulary mapping
+   */
+  stance?: SignalStance;
+
+  /**
+   * PBD importance: how central to identity (default: supporting)
+   */
+  importance?: SignalImportance;
+
+  /**
+   * Artifact provenance for anti-echo-chamber (default: self)
+   * @see ArtifactProvenance in provenance.ts
+   */
+  provenance?: ArtifactProvenance;
+
+  /**
+   * Signal elicitation type for identity validity (default: user-elicited)
+   */
+  elicitationType?: SignalElicitationType;
 }
+
+/**
+ * Default values for optional PBD fields:
+ * - stance: 'assert' (affirming statements are most common)
+ * - importance: 'supporting' (neutral default, not core)
+ * - provenance: 'self' (conservative default for anti-echo-chamber)
+ * - elicitationType: 'user-elicited' (conservative default for identity validity)
+ */
 
 /**
  * Provenance metadata for signal generalization.

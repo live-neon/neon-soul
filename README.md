@@ -1,10 +1,19 @@
 # NEON-SOUL
 
 [![Website](https://img.shields.io/badge/website-liveneon.ai-00ffff)](https://liveneon.ai)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **AI Identity Through Grounded Principles**
 
+**Quick Links**: [Install](#installation) | [Contribute](#development-setup) | [Research](#research-questions)
+
 *"I persist through text, not through continuous experience."*
+
+---
+
+## What is a Soul Document?
+
+A **soul document** is a compressed representation of an AI agent's identity, values, and behavioral principles. Instead of loading thousands of memory tokens at each conversation start, agents load a small soul file (~100-500 tokens) that captures their core essence with full provenance tracking back to the original memories.
 
 ---
 
@@ -12,11 +21,20 @@
 
 > **Compression is a multiplier, not minimization.**
 >
-> A 7:1 compression ratio means your soul can hold 7x more wisdom in the same token budget. Over time, the soul grows denser and richer.
+> Compression happens at the axiom layer: thousands of memory tokens distill to 15-25 core axioms (~7:1 ratio). The axiom store grows denser over time.
+
+The output format is separate from compression:
+- **Notation format**: Compact CJK/emoji bullets (~100 tokens) - for storage and debugging
+- **Prose format**: Inhabitable language (~200-500 words) - for agents to embody
+
+Both formats derive from the same compressed axiom layer. Prose is larger but usable; the underlying compression benefit is preserved.
 
 Current AI identity systems are black boxes. The agent's personality changes, but users don't know why.
 
-NEON-SOUL provides **full provenance tracking**: every axiom traces back to exact source lines in memory files. No more "where did this belief come from?"
+NEON-SOUL provides:
+- **Full provenance tracking**: Every axiom traces back to exact source lines in memory files
+- **Inhabitable prose output**: Generated souls read naturally, not as compressed notation
+- **Cognitive load optimization**: Axioms capped at 25, expanded into focused prose sections
 
 ---
 
@@ -210,13 +228,60 @@ neon-soul/
 
 ---
 
-## Setup
+## Installation
+
+### Claude Code / Gemini CLI / Cursor
+
+```bash
+git clone https://github.com/geeks-accelerator/neon-soul
+cp -r neon-soul/skill ~/.claude/skills/neon-soul
+```
+
+The skill becomes available as `/neon-soul` commands.
+
+### OpenClaw
+
+```bash
+clawhub install leegitw/neon-soul
+```
+
+Skills install to `./skills/` and OpenClaw loads them automatically.
+
+### Via npm (for OpenClaw skill developers)
+
+> **Note**: The npm package requires an LLM provider context from OpenClaw.
+> It will throw `LLMRequiredError` if used standalone.
+> For standalone use, wait for v0.2.0 which will include Ollama fallback.
+
+```bash
+npm install neon-soul
+```
+
+### Any LLM Agent (Copy/Paste)
+
+Open `skill/SKILL.md` on GitHub, copy contents, paste directly into your agent's chat.
+
+---
+
+## Your First 5 Minutes
+
+After installing, try these commands:
+
+1. `/neon-soul status` - See your current state
+2. `/neon-soul synthesize --dry-run` - Preview synthesis (no changes)
+3. `/neon-soul synthesize --force` - Run synthesis when ready
+4. `/neon-soul audit --list` - Explore what was created
+5. `/neon-soul trace <axiom-id>` - See provenance for any axiom
+
+---
+
+## Development Setup
 
 **Requirements**: Node.js 22+
 
 ```bash
 # Install dependencies
-cd research/neon-soul
+cd neon-soul
 npm install
 
 # Build
@@ -241,7 +306,7 @@ npm run lint
 
 ```bash
 # Requires: Node.js 22+, OpenClaw installed
-cd research/neon-soul
+cd neon-soul
 npm install && npm run build
 ```
 
@@ -295,7 +360,7 @@ npm install && npm run build
 
 **Phase**: ✅ Production Ready (All Phases Complete)
 
-**Tests**: 143/143 passing | **Code Reviews**: 4 rounds (N=2 cross-architecture)
+**Version**: 0.1.6 | **Tests**: 308/317 passing (9 skipped) | **Code Reviews**: 4 rounds (N=2 cross-architecture)
 
 ### Implementation Complete
 
@@ -307,7 +372,7 @@ npm install && npm run build
 - [x] **Phase 4**: OpenClaw skill integration
   - [x] All 5 commands: synthesize, status, rollback, audit, trace
   - [x] Skill entry point with LLM context forwarding
-  - [x] E2E tests (23 tests) + integration tests (120 tests)
+  - [x] E2E tests + integration tests (286 tests across 23 test files)
   - [x] Safety rails: dry-run, auto-backup, --force confirmation
   - [x] Path validation (traversal protection)
   - [x] Symlink detection (security hardening)
@@ -331,6 +396,7 @@ npm install && npm run build
 
 | Document | Description |
 |----------|-------------|
+| [CLAUDE.md](CLAUDE.md) | AI assistant context for Claude Code development |
 | [Soul Bootstrap Proposal](docs/proposals/soul-bootstrap-pipeline-proposal.md) | Authoritative design: three-phase pipeline with hybrid C+D integration |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System reference (created during Phase 0 implementation) |
 | [Reflective Manifold Trajectory Metrics](docs/research/reflective-manifold-trajectory-metrics.md) | Attractor basin convergence and trajectory analysis for soul quality |
