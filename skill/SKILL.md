@@ -176,6 +176,7 @@ Run soul synthesis pipeline:
 
 **Options:**
 - `--force` - Run synthesis even if below content threshold
+- `--force-resynthesis` - Force full resynthesis (ignore incremental mode)
 - `--dry-run` - Show what would change without writing (safe default)
 - `--diff` - Show proposed changes in diff format
 - `--output-format <format>` - Output format: prose (default), notation (legacy)
@@ -402,6 +403,75 @@ Place `.neon-soul/config.json` in workspace:
   }
 }
 ```
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `NEON_SOUL_DEBUG` | `0` | Enable debug logging (1 = on) |
+| `NEON_SOUL_SKIP_META_SYNTHESIS` | `0` | Skip meta-synthesis pass (1 = skip) |
+| `NEON_SOUL_FORCE_RESYNTHESIS` | `0` | Force full resynthesis (1 = force) |
+
+**Usage:**
+```bash
+NEON_SOUL_DEBUG=1 /neon-soul synthesize --force   # Debug mode
+NEON_SOUL_FORCE_RESYNTHESIS=1 /neon-soul synthesize --force  # Full resynthesis
+```
+
+---
+
+## Cycle Management
+
+NEON-SOUL uses three synthesis modes:
+
+| Mode | Trigger | Behavior |
+|------|---------|----------|
+| **initial** | No existing soul | Full synthesis from scratch |
+| **incremental** | <30% new principles | Merge new insights without full resynthesis |
+| **full-resynthesis** | ≥30% new OR contradictions OR manual | Complete resynthesis of all principles |
+
+**When does full-resynthesis trigger?**
+- New principle ratio ≥30%
+- Detected contradictions (≥2)
+- Hierarchy structure changed
+- `--force-resynthesis` flag used
+
+Use `--force-resynthesis` when you've significantly restructured your memory or want to rebuild from scratch. Also available via `NEON_SOUL_FORCE_RESYNTHESIS=1` environment variable.
+
+---
+
+## Provenance Classification
+
+Signals are classified by their source type (SSEM model):
+
+| Type | Description | Example |
+|------|-------------|---------|
+| **self** | Things you wrote | diary entries, reflections, personal notes |
+| **curated** | Things you chose to keep | saved quotes, bookmarked articles, adopted guides |
+| **external** | Things others said about you | peer reviews, feedback, external assessments |
+
+Provenance is tracked for anti-echo-chamber protection.
+
+---
+
+## Grounding Requirements (Anti-Echo-Chamber Protection)
+
+To prevent self-reinforcing beliefs, axioms must be grounded in diverse evidence:
+
+| Criterion | Default | Why |
+|-----------|---------|-----|
+| Minimum principles | 3 | Requires pattern across observations |
+| Provenance diversity | 2 types | Prevents single-source dominance |
+| External OR questioning | Required | Ensures perspective beyond self |
+
+**Blocked axioms** appear in synthesis output with their blocker reason:
+```
+⚠ 2 axioms blocked by anti-echo-chamber:
+  - "I value authenticity above all" (self-only provenance)
+  - "Growth requires discomfort" (no questioning evidence)
+```
+
+To unblock, add external sources or questioning evidence to your memory.
 
 ---
 
