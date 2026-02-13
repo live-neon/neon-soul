@@ -11,7 +11,7 @@ The core pipeline: Memory files go in. Signals get extracted with source locatio
 - [Homepage](https://liveneon.ai): Landing page with overview and documentation
 - [GitHub Repository](https://github.com/geeks-accelerator/neon-soul): Source code, issues, and installation instructions
 - [npm Package](https://www.npmjs.com/package/neon-soul): Install via npm for OpenClaw skill developers
-- [SKILL.md](https://github.com/geeks-accelerator/neon-soul/blob/main/skill/SKILL.md): Skill manifest with all 5 commands
+- [SKILL.md](https://github.com/geeks-accelerator/neon-soul/blob/main/skills/neon-soul/SKILL.md): Skill manifest with all 5 commands
 - [Architecture](https://github.com/geeks-accelerator/neon-soul/blob/main/docs/ARCHITECTURE.md): System design and module breakdown
 
 ## Commands
@@ -25,7 +25,7 @@ The core pipeline: Memory files go in. Signals get extracted with source locatio
 ## Installation
 
 - OpenClaw: `clawhub install leegitw/neon-soul`
-- Claude Code / Gemini CLI / Cursor: Copy skill/SKILL.md to your skills directory
+- Claude Code / Gemini CLI / Cursor: Copy skills/neon-soul/SKILL.md to your skills directory
 - npm: `npm install neon-soul`
 - Any LLM Agent: Copy the contents of SKILL.md into your agent's context
 

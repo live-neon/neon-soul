@@ -60,8 +60,7 @@
   },
   "files": [
     "dist",
-    "skill",
-    "!skill/.env",
+    "skills",
     "!**/.env"
   ],
   "repository": {

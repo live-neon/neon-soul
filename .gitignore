@@ -12,7 +12,7 @@ env/
 # Environment
 .env
 .env.local
-skill/.env
+skills/**/.env
 
 # IDE
 .vscode/
@@ -36,7 +36,6 @@ website/output/
 # Skills.sh / Agent local artifacts
 .agents/
 .agent/
-skills/
 
 # Claude Code
 .claude/
