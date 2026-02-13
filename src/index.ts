@@ -8,7 +8,6 @@
  */
 
 export { loadConfig, type NeonSoulConfig } from './lib/config.js';
-export { embed, embedBatch } from './lib/embeddings.js';
 export {
   cosineSimilarity,
   findBestMatch,

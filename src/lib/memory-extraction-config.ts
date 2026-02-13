@@ -19,7 +19,6 @@ import { randomUUID } from 'node:crypto';
 import type { Signal, SignalType, SoulCraftDimension } from '../types/signal.js';
 import type { MemoryFile, MemoryCategory } from './memory-walker.js';
 import type { LLMProvider } from '../types/llm.js';
-import { embed } from './embeddings.js';
 import { classifyDimension, classifySectionType, type SectionType } from './semantic-classifier.js';
 
 /**
@@ -152,8 +151,7 @@ export async function extractSignalsFromMemory(
   let signals: Signal[] = [];
 
   // Extract from frontmatter (no LLM needed - metadata-based)
-  // CR-1 FIX: await the async extractFromFrontmatter
-  const frontmatterSignals = await extractFromFrontmatter(memoryFile);
+  const frontmatterSignals = extractFromFrontmatter(memoryFile);
   signals.push(...frontmatterSignals);
 
   // Extract from sections (LLM-based semantic classification)
@@ -174,9 +172,8 @@ export async function extractSignalsFromMemory(
 
 /**
  * Extract signals from frontmatter metadata.
- * CR-1 FIX: Now async to compute embeddings.
  */
-async function extractFromFrontmatter(memoryFile: MemoryFile): Promise<Signal[]> {
+function extractFromFrontmatter(memoryFile: MemoryFile): Signal[] {
   const signals: Signal[] = [];
   const { frontmatter, path, category } = memoryFile;
 
@@ -184,8 +181,7 @@ async function extractFromFrontmatter(memoryFile: MemoryFile): Promise<Signal[]>
   if (Array.isArray(frontmatter['tags'])) {
     const tags = frontmatter['tags'] as string[];
     if (tags.length > 0) {
-      // CR-1 FIX: await the async createSignal
-      signals.push(await createSignal({
+      signals.push(createSignal({
         type: 'value',
         text: `Values related to: ${tags.join(', ')}`,
         confidence: 0.6,
@@ -197,8 +193,7 @@ async function extractFromFrontmatter(memoryFile: MemoryFile): Promise<Signal[]>
 
   // Priority indicates importance
   if (frontmatter['priority'] === 'high') {
-    // CR-1 FIX: await the async createSignal
-    signals.push(await createSignal({
+    signals.push(createSignal({
       type: 'value',
       text: 'This topic is a high priority',
       confidence: 0.7,
@@ -270,14 +265,12 @@ async function extractFromSections(memoryFile: MemoryFile, llm: LLMProvider): Pr
       for (const item of items.slice(0, 5)) {
         // Use LLM to classify dimension for each item
         const dimension = await classifyDimension(llm, item);
-        const embedding = await embed(item);
         signals.push({
           id: randomUUID(),
           type: signalType,
           text: item,
           confidence: baseConfidence,
           dimension,
-          embedding,
           source: {
             type: 'memory',
             file: path,
@@ -294,14 +287,12 @@ async function extractFromSections(memoryFile: MemoryFile, llm: LLMProvider): Pr
       if (content.length > 20) {
         // Use LLM to classify dimension for content
         const dimension = await classifyDimension(llm, content.slice(0, 500));
-        const embedding = await embed(content.slice(0, 500));
         signals.push({
           id: randomUUID(),
           type: signalType,
           text: content.slice(0, 200),
           confidence: baseConfidence,
           dimension,
-          embedding,
           source: {
             type: 'memory',
             file: path,
@@ -339,24 +330,19 @@ function extractListItems(content: string): string[] {
 
 /**
  * Helper to create a signal with common structure.
- * CR-1 FIX: Now async to compute embeddings immediately (no empty arrays).
  */
-async function createSignal(
+function createSignal(
   raw: RawExtractedSignal,
   path: string,
   _category: MemoryCategory,
   section: string
-): Promise<Signal> {
-  // CR-1 FIX: Compute embedding immediately to prevent downstream crashes
-  const embedding = await embed(raw.text);
-
+): Signal {
   return {
     id: randomUUID(),
     type: raw.type,
     text: raw.text,
     confidence: raw.confidence,
     dimension: raw.dimension,
-    embedding,
     source: {
       type: 'memory',
       file: path,

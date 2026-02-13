@@ -40,9 +40,6 @@ import { OllamaLLMProvider } from '../../src/lib/llm-providers/ollama-provider.j
 import { VCRLLMProvider, type VCRMode } from '../../src/lib/llm-providers/vcr-provider.js';
 import { generalizeSignal, generalizeSignals, PROMPT_VERSION } from '../../src/lib/signal-generalizer.js';
 import { createPrincipleStore } from '../../src/lib/principle-store.js';
-import { embed } from '../../src/lib/embeddings.js';
-// v0.2.0: cosineSimilarity is deprecated, embedding-based tests need migration
-// import { cosineSimilarity } from '../../src/lib/matcher.js';
 import type { Signal } from '../../src/types/signal.js';
 import type { LLMProvider } from '../../src/types/llm.js';
 
@@ -93,19 +90,21 @@ beforeAll(async () => {
 
 /**
  * Convert golden set signal to Signal type.
+ * v0.2.0: embedding field is now optional (LLM-based similarity).
  */
-async function toSignal(gs: GoldenSetSignal): Promise<Signal> {
+function toSignal(gs: GoldenSetSignal): Signal {
   return {
     id: gs.id,
     text: gs.text,
     dimension: gs.dimension as Signal['dimension'],
     type: 'value',
     confidence: 0.9,
-    embedding: await embed(gs.text),
     source: {
       file: 'golden-set',
       line: 0,
       context: 'VCR test',
+      type: 'memory',
+      extractedAt: new Date(),
     },
   };
 }
@@ -113,7 +112,7 @@ async function toSignal(gs: GoldenSetSignal): Promise<Signal> {
 describe('VCR Generalization Tests', () => {
   describe('Signal Generalization', () => {
     it('generalizes signals to abstract principles', async () => {
-      const signal = await toSignal(goldenSet.signals[0]!);
+      const signal = toSignal(goldenSet.signals[0]!);
       const result = await generalizeSignal(llm, signal, 'llama3');
 
       expect(result.generalizedText).toBeDefined();
@@ -127,7 +126,7 @@ describe('VCR Generalization Tests', () => {
     });
 
     it('generalizations use imperative form', async () => {
-      const signals = await Promise.all(goldenSet.signals.slice(0, 5).map(toSignal));
+      const signals = goldenSet.signals.slice(0, 5).map(toSignal);
       const results = await generalizeSignals(llm, signals, 'llama3');
 
       for (const result of results) {
@@ -140,7 +139,7 @@ describe('VCR Generalization Tests', () => {
     });
 
     it('removes pronouns from generalizations', async () => {
-      const signals = await Promise.all(goldenSet.signals.map(toSignal));
+      const signals = goldenSet.signals.map(toSignal);
       const results = await generalizeSignals(llm, signals, 'llama3');
 
       const pronounPattern = /\b(I|we|you|my|our|your)\b/i;
@@ -185,7 +184,7 @@ describe('VCR Generalization Tests', () => {
 
   describe('VCR Performance', () => {
     it('replays fixtures quickly', async () => {
-      const signals = await Promise.all(goldenSet.signals.map(toSignal));
+      const signals = goldenSet.signals.map(toSignal);
 
       const startTime = Date.now();
       await generalizeSignals(llm, signals, 'llama3');

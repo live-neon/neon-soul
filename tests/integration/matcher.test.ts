@@ -14,7 +14,6 @@ import {
   DEFAULT_MATCH_THRESHOLD,
   type MatchResult,
 } from '../../src/lib/matcher.js';
-import { embed } from '../../src/lib/embeddings.js';
 import type { Principle } from '../../src/types/principle.js';
 import { createSimilarityMockLLM } from '../mocks/llm-mock.js';
 
@@ -70,29 +69,12 @@ describe('Semantic Matcher', () => {
   });
 
   /**
-   * @deprecated embed tests - kept until Stage 5 removes embeddings.ts
-   * These tests will be deleted when @xenova/transformers is removed
+   * v0.2.0: embed() function removed - tests deleted
+   * Embeddings replaced by LLM-based similarity matching
+   * @see docs/plans/2026-02-12-llm-based-similarity.md (Stage 5)
    */
-  describe('embed (@deprecated)', () => {
-    it('generates 384-dimensional embeddings', async () => {
-      const embedding = await embed('Be honest about capabilities');
-      expect(embedding).toHaveLength(384);
-    });
-
-    it('generates similar embeddings for similar texts', async () => {
-      const e1 = await embed('Be honest about capabilities');
-      const e2 = await embed('Be truthful about abilities');
-      const similarity = cosineSimilarity(e1, e2);
-      // Relaxed threshold - semantic similarity varies
-      expect(similarity).toBeGreaterThan(0.5);
-    });
-
-    it('generates different embeddings for different texts', async () => {
-      const e1 = await embed('Be honest about capabilities');
-      const e2 = await embed('Optimize database queries');
-      const similarity = cosineSimilarity(e1, e2);
-      expect(similarity).toBeLessThan(0.5);
-    });
+  describe('embed (removed in v0.2.0)', () => {
+    it.skip('embed() function removed - use LLM-based similarity instead', () => {});
   });
 
   /**
