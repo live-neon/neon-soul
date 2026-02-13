@@ -60,8 +60,29 @@ export interface Principle {
   dimension: SoulCraftDimension;
   strength: number;
   n_count: number; // Reinforcement count (equals derived_from.signals.length)
-  embedding: number[]; // Centroid of merged signals
-  similarity_threshold: number; // Default 0.75 (see docs/issues/2026-02-10-generalized-signal-threshold-gap.md)
+
+  /**
+   * @deprecated v0.2.0: Embedding-based similarity replaced by LLM-based semantic comparison.
+   * Field retained as optional for backward compatibility with existing state.json files.
+   * New principles may not have this field; pipeline ignores it and computes similarity fresh.
+   * @see docs/plans/2026-02-12-llm-based-similarity.md
+   */
+  embedding?: number[];
+
+  /**
+   * @deprecated v0.2.0: Threshold now managed in matcher, not per-principle.
+   * Field retained as optional for backward compatibility with existing state.json files.
+   * @see docs/plans/2026-02-12-llm-based-similarity.md
+   */
+  similarity_threshold?: number;
+
+  /**
+   * SHA256 hash of normalized principle text for quick deduplication.
+   * Used to detect exact duplicates without LLM calls.
+   * Added in v0.2.0 as part of LLM-based similarity migration.
+   */
+  text_hash?: string;
+
   derived_from: PrincipleProvenance;
   history: PrincipleEvent[];
 

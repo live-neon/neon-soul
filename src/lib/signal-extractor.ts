@@ -10,7 +10,6 @@
 import type { Signal } from '../types/signal.js';
 import type { LLMProvider } from '../types/llm.js';
 import { requireLLM } from '../types/llm.js';
-import { embed } from './embeddings.js';
 import { createSignalSource } from './provenance.js';
 import type { MemoryFile } from './memory-walker.js';
 import {
@@ -196,17 +195,16 @@ export async function extractSignalsFromContent(
           candidate.originalLine.slice(0, 100)
         );
 
-        // Parallelize dimension, signalType, stance, importance, elicitationType, and embedding
+        // Parallelize dimension, signalType, stance, importance, elicitationType
         // PBD alignment: Added stance and importance (Stage 2 & 3), elicitationType (Stage 12)
         // I-1 FIX: classifyElicitationType now accepts signalText directly (no tempSignal needed)
-        const [dimension, signalType, stance, importance, elicitationType, embedding] =
+        const [dimension, signalType, stance, importance, elicitationType] =
           await Promise.all([
             semanticClassifyDimension(llm, candidate.text),
             semanticClassifySignalType(llm, candidate.text),
             semanticClassifyStance(llm, candidate.text),
             semanticClassifyImportance(llm, candidate.text),
             classifyElicitationType(llm, candidate.text, signalSource.context),
-            embed(candidate.text),
           ]);
 
         return {
@@ -214,7 +212,6 @@ export async function extractSignalsFromContent(
           type: signalType,
           text: candidate.text,
           confidence: detection.confidence,
-          embedding,
           source: signalSource,
           dimension,
           stance, // PBD Stage 2

@@ -102,7 +102,12 @@ export interface Signal {
   type: SignalType;
   text: string;
   confidence: number;
-  embedding: number[]; // 384-dim from all-MiniLM-L6-v2
+  /**
+   * @deprecated Since v0.2.0, embeddings are no longer used.
+   * LLM-based similarity matching uses text directly.
+   * This field will be removed in a future version.
+   */
+  embedding?: number[];
   /** SoulCraft dimension this signal relates to */
   dimension?: SoulCraftDimension;
   source: SignalSource;
@@ -182,13 +187,11 @@ export interface GeneralizedSignal {
   /** Abstract principle statement from LLM generalization */
   generalizedText: string;
   /**
-   * Embedding of the generalized text (384-dim from all-MiniLM-L6-v2).
-   *
-   * **Important**: When `provenance.used_fallback` is true, this embedding
-   * is generated from the original signal text, not the generalized text.
-   * This may affect clustering quality if fallback rate is high.
+   * @deprecated Since v0.2.0, embeddings are no longer used.
+   * LLM-based similarity matching uses text directly.
+   * This field will be removed in a future version.
    */
-  embedding: number[];
+  embedding?: number[];
   /** Full provenance metadata */
   provenance: GeneralizationProvenance;
 }

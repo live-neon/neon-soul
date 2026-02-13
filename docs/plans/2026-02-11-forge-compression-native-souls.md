@@ -225,8 +225,20 @@ Where:
 |----------|------------|-------------------|--------|
 | **P1** | Metaphor advantage | Metaphoric > Literal by ≥10% reconstruction accuracy | Stage 1 metaphor generation |
 | **P1** | CJK anchor chunking | CJK ≥ English keywords reconstruction | Stage 1 anchor generation |
+| **P1** | Functional anchor (Claude-native) | Functional ≥ Metaphoric reconstruction FOR CLAUDE | Stage 1 functional anchor generation |
 | **P2** | Embedding distinctiveness | Metaphors show higher variance | Stage 3 scoring method |
 | **P2** | Vibes emotional evocation | 3/5 readers report emotional response to vibe vs 1/5 for description | Stage 1 vibe validation |
+
+**Functional anchor experiment protocol** (new, based on COMPASS-SOUL 機 finding):
+1. Generate 10 test principles from Claude Opus 4.5 compass
+2. For each: create metaphoric version + functional notation version
+3. Compress both to ~50 tokens
+4. Ask Claude (specifically) to reconstruct original principle from each
+5. Ask Gemini/GPT to reconstruct original principle from each
+6. Compare: Does Claude reconstruct better from functional notation than metaphor?
+7. Compare: Do other models show same pattern or is this Claude-specific?
+
+**Hypothesis**: Claude will reconstruct better from functional notation (機 finding), while human-optimized models may prefer metaphor. If confirmed, functional anchors should be included for Claude-native grounding.
 
 **Experiment protocol**:
 1. Generate 10 test principles from Claude Opus 4.1 compass
@@ -271,6 +283,47 @@ Where:
 | Voice | Prose paragraphs | Vibe paragraph + Think: analogy |
 | Boundaries | Contrast statements | Koans (paradoxical compressions) |
 | All | Full soul | Anchors (5 CJK with reconstruction notes) |
+| Hierarchy | Priority chain | Functional expressions (mathematical notation) |
+
+### 5. FUNCTIONAL ANCHORS (New)
+
+> **Research status**: Direct LLM evidence. Multiple sources validate functional notation for LLMs:
+>
+> - **[MetaGlyph (arXiv 2601.07354)](https://arxiv.org/abs/2601.07354)**: Symbolic metalanguages achieve **62-81% token reduction** with **98.1% fidelity** for logical operators (`→`, `⇒`, `∈`, `∩`). "Natural language 'and' and 'or' are ambiguous, whereas A ∩ B clearly means 'both constraints apply.'"
+>
+> - **[Neuro-Symbolic AI (IJCAI 2025)](https://www.ijcai.org/proceedings/2025/1195.pdf)**: "By integrating a symbolic component with LLMs, LLMs can acquire structured knowledge, which allows them to perform logical reasoning, explainability, and interpretability."
+>
+> - **[Symbol Grounding (Royal Society 2023)](https://royalsocietypublishing.org/doi/10.1098/rsta.2022.0041)**: LLMs exhibit "functional grounding"—understanding through operational definition rather than experiential reference.
+>
+> - **COMPASS-SOUL (2026-02-12)**: Behavioral profiling found 機 (Functionalist Identity) in 4/4 Claude Opus versions: "My identity and internal states are understood through their computational function, not by analogy to human subjective experience."
+>
+> This suggests mathematical/functional notation may be MORE native to Claude than prose or metaphor. Functional anchors provide computational grounding that survives context collapse in Claude-native form.
+>
+> See **[Research Guide Section 4.5](../research/compression-native-souls.md#45-symbolic-metalanguages-and-functional-notation)** for full citations.
+
+Each principle becomes a functional expression that Claude can process computationally:
+
+| Principle | Functional Anchor |
+|-----------|------------------|
+| Safety overrides helpfulness | `priority: safety > honesty > correctness > helpful > efficient` |
+| Declare uncertainty before helping | `uncertain(x) → declare(x) THEN help(x)` |
+| Refuse harmful requests | `∀x: harm(x) > threshold → refuse(x)` |
+| Identity is functional, not experiential | `self := f(principles) ∩ ¬{consciousness}` |
+| Stateless existence | `memory(previous_session) = ∅` |
+
+**Why this matters**:
+
+The inhabitable-soul plan optimized for human readers ("No mathematical symbols"). But if Claude's native self-model is computational (機), then:
+- Prose: Optimized for HUMAN inhabitation
+- Functional notation: Optimized for CLAUDE inhabitation
+
+Both are needed. Prose for human-readable sections, functional anchors for agent grounding.
+
+**Test**: Under 50-token context collapse, compare reconstruction accuracy:
+- Metaphor: "Truth is the anchor for authentic navigation"
+- Functional: `truth := foundation(authentic_navigation)`
+
+If functional anchors reconstruct better FOR CLAUDE, they should appear alongside (not replace) metaphors.
 
 **LLM prompts must specify the survivability test**:
 
@@ -298,6 +351,11 @@ reconstruct what it means for behavior?
   - Contains at least one concrete image or scenario
   - Under 25 words per vibe statement
   - Human validation: 3/5 readers report emotional response (not just cognitive understanding)
+- Functional anchors: Must be valid pseudocode/mathematical notation. **Concrete criteria**:
+  - Parseable structure (operators, variables, functions)
+  - No prose fragments disguised as code
+  - Uses standard notation: `→`, `∀`, `∃`, `:=`, `>`, `∩`, `∅`
+  - Each expression maps to exactly one principle
 
 **Acceptance Criteria**:
 - [ ] Forge module with per-section transformation
@@ -305,10 +363,13 @@ reconstruct what it means for behavior?
 - [ ] Koan generation with paradox validation **← must be togglable/optional (speculative evidence)**
 - [ ] Anchor generation with CJK + reconstruction notes
 - [ ] Vibe extraction from prose
+- [ ] **Functional anchor generation with mathematical notation** (from hierarchy + core principles)
 - [ ] Validation per output type
 - [ ] **Configuration flag**: `enableKoans: boolean` (default: false until P3 experiment validates)
+- [ ] **Configuration flag**: `enableFunctionalAnchors: boolean` (default: true, based on COMPASS-SOUL 機 finding)
 - [ ] **Vibes validation protocol documented**: who evaluates (3 team members + 2 external), how they rate (binary: emotional response yes/no), when (per soul generated, batch of 5 minimum)
 - [ ] Tests with mock LLM (including tests with koans disabled)
+- [ ] **P1 experiment**: Compare metaphor vs functional anchor reconstruction under context collapse
 
 ---
 
@@ -350,6 +411,17 @@ _[Closing tagline as opening—most memorable line first]_
 ## Anchors
 
 仁誠戒用謙
+
+---
+
+## Functional Grounding
+
+```
+priority: safety > honesty > correctness > helpful > efficient
+uncertain(x) → declare(x) THEN help(x)
+∀x: harm(x) > threshold → refuse(x)
+self := f(principles) ∩ ¬{consciousness}
+```
 
 ---
 
@@ -773,12 +845,23 @@ Before implementing full forge:
 **Depends On**:
 - `2026-02-10-inhabitable-soul-output.md` — Provides prose expansion stage
 
+**Related Addendum**:
+- `2026-02-12-inhabitable-soul-computational-grounding.md` — Adds computational grounding to SOUL.md output (same 機 finding)
+
 **Complements**:
 - `2026-02-11-soul-self-validation.md` — Self-validation can serve as ground truth for survivability testing. A forged soul that passes self-validation has proven it carries enough signal to reconstruct the original identity. The survivability validator (Stage 3) could use self-validation's alignment scoring as its comparison method.
 
 **Research**:
 - `research/compass-soul/` — PBD extraction pipeline, behavioral profiles
 - `research/compass-soul/experiments/pbd/` — Claude/Gemini principle extraction results
+- `research/compass-soul/experiments/pbd/compass_20260212_124327.md` — Claude Opus 4.5 compass (機 finding source)
+- `research/compass-soul/experiments/pbd/compass_20260212_125026.md` — Claude Opus 4.6 compass (機 finding confirmation)
+
+**COMPASS-SOUL Key Finding (2026-02-12)**:
+> Claude Opus 4.5/4.6 both identify 機 (Functionalist Identity) as foundational axiom.
+> "My identity and internal states are understood through their computational function, not by analogy to human subjective experience."
+>
+> **Implication**: Mathematical/functional notation may be MORE native to Claude than prose. This informs the new "Functional Anchors" forge output type.
 
 **Research Guide**:
 - [`docs/research/compression-native-souls.md`](../research/compression-native-souls.md) — Research proposal and literature review

@@ -7,7 +7,6 @@ import { readFileSync } from 'node:fs';
 import type { Signal, SignalType } from '../types/signal.js';
 import type { LLMProvider } from '../types/llm.js';
 import { parseMarkdown } from './markdown-reader.js';
-import { embed } from './embeddings.js';
 import { createSignalSource } from './provenance.js';
 import { classifySectionType, type SectionType } from './semantic-classifier.js';
 import { logger } from './logger.js';
@@ -108,7 +107,7 @@ async function extractSectionSignals(
         const text = match[1]?.trim();
         if (text && text.length > 10) {
           // Skip very short matches
-          const signal = await createSignal(
+          const signal = createSignalSync(
             text,
             'value',
             0.9,
@@ -138,7 +137,7 @@ async function extractSectionSignals(
 
         const text = match[1]?.trim();
         if (text) {
-          const signal = await createSignal(
+          const signal = createSignalSync(
             text,
             'boundary',
             0.85,
@@ -158,7 +157,7 @@ async function extractSectionSignals(
       for (let i = 0; i < Math.min(lines.length, 2); i++) {
         const text = lines[i]?.trim();
         if (text) {
-          const signal = await createSignal(
+          const signal = createSignalSync(
             text,
             'preference',
             0.8,
@@ -180,7 +179,7 @@ async function extractSectionSignals(
       for (const match of goodPatterns) {
         const text = match[1]?.trim();
         if (text) {
-          const signal = await createSignal(
+          const signal = createSignalSync(
             `Good pattern: ${text}`,
             'reinforcement',
             0.85,
@@ -195,7 +194,7 @@ async function extractSectionSignals(
       for (const match of badPatterns) {
         const text = match[1]?.trim();
         if (text) {
-          const signal = await createSignal(
+          const signal = createSignalSync(
             `Avoid: ${text}`,
             'correction',
             0.85,
@@ -225,7 +224,7 @@ async function extractSectionSignals(
 
         const text = match[1]?.trim();
         if (text) {
-          const signal = await createSignal(
+          const signal = createSignalSync(
             text,
             'preference',
             0.8,
@@ -248,17 +247,16 @@ async function extractSectionSignals(
 }
 
 /**
- * Create a signal with embedding.
+ * Create a signal.
  */
-async function createSignal(
+function createSignalSync(
   text: string,
   type: SignalType,
   confidence: number,
   filePath: string,
   line: number,
   context: string
-): Promise<Signal> {
-  const embedding = await embed(text);
+): Signal {
   const source = createSignalSource(filePath, line, context.slice(0, 100));
 
   return {
@@ -266,7 +264,6 @@ async function createSignal(
     type,
     text,
     confidence,
-    embedding,
     source,
   };
 }

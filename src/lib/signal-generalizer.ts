@@ -8,7 +8,6 @@ import { createHash } from 'node:crypto';
 import type { Signal, GeneralizedSignal, GeneralizationProvenance } from '../types/signal.js';
 import type { LLMProvider } from '../types/llm.js';
 import { requireLLM } from '../types/llm.js';
-import { embed, embedBatch } from './embeddings.js';
 import { logger } from './logger.js';
 import { LRUCache } from 'lru-cache';
 import { buildPrompt, validateGeneralization } from './generalization-helpers.js';
@@ -66,9 +65,6 @@ export async function generalizeSignal(
     usedFallback = true;
   }
 
-  // Generate embedding for the (possibly fallback) text
-  const embedding = await embed(generalizedText);
-
   const provenance: GeneralizationProvenance = {
     original_text: signal.text,
     generalized_text: generalizedText,
@@ -81,7 +77,6 @@ export async function generalizeSignal(
   return {
     original: signal,
     generalizedText,
-    embedding,
     provenance,
   };
 }
@@ -175,15 +170,11 @@ export async function generalizeSignals(
       if (usedFallback) fallbackCount++;
     }
 
-    // Batch embed all generalized texts
-    const embeddings = await embedBatch(generalizedTexts);
-
     // Build results
     for (let j = 0; j < batch.length; j++) {
       const signal = batch[j]!;
       const genText = generalizedTexts[j]!;
       const fallback = usedFallbacks[j]!;
-      const emb = embeddings[j]!;
 
       const provenance: GeneralizationProvenance = {
         original_text: signal.text,
@@ -197,7 +188,6 @@ export async function generalizeSignals(
       batchResults.push({
         original: signal,
         generalizedText: genText,
-        embedding: emb,
         provenance,
       });
     }
