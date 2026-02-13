@@ -428,31 +428,37 @@ Instead of adding checksums for @xenova/transformers, the dependency was **remov
 - No third-party npm packages with runtime code
 - ~~Expected: "Benign" rating on ClawHub security scan~~ → Still "Suspicious" due to new LLM wording concern
 
-### Phase 7: LLM Data Transmission Wording Fix (PENDING)
+### Phase 7: LLM Data Transmission Wording Fix (COMPLETE - v0.2.1)
 
-**Status**: 🔲 TODO
+**Status**: ✅ IMPLEMENTED
 
 The v0.2.0 scan identified a **valid contradiction**: "No external API calls - your data never leaves your local machine" is misleading when the agent's LLM may be cloud-hosted.
 
-**Root cause**: We removed the embedding dependency but introduced a new dependency on the agent's LLM. The wording from v0.1.x assumed local embedding inference; the wording needs to update for LLM-based similarity.
+**Root cause**: We removed the embedding dependency but introduced a new dependency on the agent's LLM. The wording from v0.1.x assumed local embedding inference; the wording needed to update for LLM-based similarity.
 
-**Fixes required**:
+**Fixes implemented** (2026-02-12):
 
-1. **Update "Data handling" statement** in SKILL.md
+1. **Updated "Data handling" statement** in SKILL.md
    - Before: "No external API calls - your data never leaves your local machine"
-   - After: "Your data stays within your agent's trust boundary. If your agent uses a cloud LLM (e.g., Claude, GPT), data is transmitted to that service as part of normal agent operation - the same as any other skill that uses your agent's capabilities."
+   - After: "Your data stays within your agent's trust boundary. If your agent uses a cloud-hosted LLM (Claude, GPT, etc.), data is transmitted to that service as part of normal agent operation..."
 
-2. **Clarify `disable-model-invocation:true`** in SKILL.md
-   - Add explanation: "This flag means the skill cannot run autonomously. When you invoke the skill, it uses your agent's LLM to analyze content - this is expected behavior, not a contradiction."
+2. **Clarified `disable-model-invocation:true`** in SKILL.md
+   - Added explanation in new Privacy Considerations section
 
-3. **Add privacy section** to SKILL.md
-   - "If you use a cloud-hosted LLM and have sensitive data in memory/, consider the same privacy implications you would for any agent interaction with that data."
-   - "For maximum privacy, use an agent with a local LLM (e.g., Ollama)."
+3. **Added "Privacy Considerations" section** to SKILL.md
+   - Explains cloud vs local LLM data handling
+   - Lists what NEON-SOUL does NOT do
+   - Provides pre-synthesis checklist
+   - Clarifies the metadata flag meaning
+
+4. **Updated troubleshooting** section
+   - Removed misleading "Nothing was sent anywhere" claim
+   - Replaced with accurate "some data may have been sent before the failure"
 
 **Acceptance criteria**:
-- [ ] SKILL.md updated with accurate data handling statement
-- [ ] `disable-model-invocation:true` clarified
-- [ ] Privacy considerations section added
+- [x] SKILL.md updated with accurate data handling statement
+- [x] `disable-model-invocation:true` clarified
+- [x] Privacy considerations section added
 - [ ] Publish v0.2.1 with documentation fixes
 - [ ] ClawHub scan shows "Benign" (or at least removes the contradiction flag)
 
