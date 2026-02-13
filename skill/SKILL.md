@@ -19,12 +19,18 @@ metadata:
         - .neon-soul/
         - SOUL.md
 tags:
-  - soul-synthesis
   - identity
-  - semantic-compression
-  - provenance
+  - personality
+  - character
+  - values
+  - journaling
+  - diary
+  - memory
+  - self-reflection
+  - self-discovery
+  - ai-agent
   - openclaw
-  - llm-similarity
+  - personal-knowledge
 ---
 
 # NEON-SOUL
