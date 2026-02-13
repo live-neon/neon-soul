@@ -1,8 +1,8 @@
 ---
 name: NEON-SOUL
-version: 0.1.8
+version: 0.2.0
 description: AI Identity Through Grounded Principles - synthesize your soul from memory with semantic compression.
-homepage: https://liveneon.ai
+homepage: https://github.com/geeks-accelerator/neon-soul
 user-invocable: true
 disableModelInvocation: true
 disable-model-invocation: true
@@ -21,15 +21,41 @@ metadata:
 tags:
   - soul-synthesis
   - identity
-  - embeddings
   - semantic-compression
   - provenance
   - openclaw
+  - llm-similarity
 ---
 
 # NEON-SOUL
 
 AI Identity Through Grounded Principles - soul synthesis with semantic compression.
+
+---
+
+## Upgrading to 0.2.0
+
+If you used NEON-SOUL before version 0.2.0:
+- Your existing `.neon-soul/state.json` will work (embedding fields are ignored)
+- First synthesis will recalculate all similarity matches
+- Your SOUL.md and provenance chain are unchanged
+
+Nothing to do - just run `/neon-soul synthesize` as usual.
+
+---
+
+## What Changed in v0.2.0
+
+We removed the embedding model dependency, which means principle matching now uses your agent's LLM directly. This is the same model you already trust with your memory files.
+
+**What this means for you:**
+- Synthesis may take a bit longer (seconds, not minutes)
+- Results may vary slightly between runs (like asking the same question twice - similar but not identical)
+- You'll need an active connection to your agent (can't run offline)
+
+**Why we made this choice:** The previous approach required third-party code that security scanners flagged. Your soul is too important for compromises.
+
+**Your soul reflects patterns in your memory, not exact calculations.** Like human memory itself, the synthesis process involves interpretation. Running synthesis twice may produce slightly different results - but the core truths will remain stable if your memory is consistent.
 
 ---
 
@@ -42,27 +68,28 @@ NEON-SOUL is an **instruction-based skill** - there is no binary or CLI to insta
 2. Your agent reads this SKILL.md and follows the instructions
 3. The agent uses its built-in capabilities to read files, analyze content, and write output
 
-**No external code execution** - the skill is pure instructions that your agent interprets.
+**No external API calls** - your data never leaves your local machine. The skill does not transmit data to external servers, third-party endpoints, or remote APIs.
 
-**Data handling**: Your data stays with your agent. All analysis uses the same model you've already configured and trust - no external APIs, no third-party endpoints. The skill is pure instructions with no network code.
+**Pure instruction skill**: NEON-SOUL uses your agent's existing LLM for semantic analysis. No third-party packages, no model downloads, no additional dependencies.
+
+**Data handling**: Your data stays local. All analysis happens using your agent's capabilities - no data transmission, no external APIs, no third-party endpoints receiving your content.
+
+**Principle matching**: When similar principles are detected, the one with the most signal confirmations (highest strength) is kept. Equal-strength principles prefer the older observation.
 
 ---
 
-## Model Invocation Clarification
+## Requirements
 
-This skill sets `disable-model-invocation: true` in its metadata. Here's what that means:
+NEON-SOUL requires only an active connection to your AI agent (Claude Code, OpenClaw, etc.). The agent provides all necessary capabilities:
 
-**What "disable-model-invocation" means:**
-- The skill does **NOT** require LLM calls to function
-- Your agent interprets the instructions using its existing capabilities
-- No additional model API calls are made by the skill itself
+| Requirement | Details |
+|-------------|---------|
+| Agent | Claude Code, OpenClaw, or compatible |
+| LLM access | Your agent's configured LLM (for semantic analysis) |
+| No packages | No npm packages required |
+| No models | No model downloads |
 
-**What about embeddings and similarity?**
-- **Embeddings** (all-MiniLM-L6-v2) use local inference, not LLM invocation
-- **Cosine similarity** is a mathematical operation (dot product), not a model call
-- **Dimension classification** uses your agent's existing capabilities
-
-**In short:** The skill uses mathematical operations (embeddings, cosine similarity) and your agent's built-in reasoning. It does not invoke separate LLM models beyond what your agent already provides.
+**That's it.** If your agent works, NEON-SOUL works.
 
 ---
 
@@ -112,7 +139,7 @@ That's it. Your first soul is created with full provenance tracking. Use `/neon-
 
 Run soul synthesis pipeline:
 1. Collect signals from memory files
-2. Match to existing principles (cosine similarity >= 0.85)
+2. Match to existing principles (semantic similarity via LLM)
 3. Promote high-confidence principles to axioms (N≥3)
 4. Generate SOUL.md with provenance tracking
 
@@ -334,10 +361,6 @@ Place `.neon-soul/config.json` in workspace:
     "format": "cjk-math-emoji",
     "fallback": "native"
   },
-  "matching": {
-    "similarityThreshold": 0.85,
-    "embeddingModel": "Xenova/all-MiniLM-L6-v2"
-  },
   "paths": {
     "memory": "memory/",
     "output": ".neon-soul/"
@@ -356,8 +379,8 @@ Place `.neon-soul/config.json` in workspace:
 ```
 Memory Files → Signal Extraction → Principle Matching → Axiom Promotion → SOUL.md
      ↓              ↓                    ↓                   ↓              ↓
-  Source        Embeddings          Similarity           N-count      Provenance
- Tracking       (384-dim)           Matching             Tracking       Chain
+  Source        LLM Analysis        Semantic             N-count      Provenance
+ Tracking       (your agent)        Matching             Tracking       Chain
 ```
 
 ---
@@ -385,7 +408,7 @@ When prose generation fails, NEON-SOUL falls back to bullet lists of native axio
 **Common causes:**
 - **LLM provider not available**: Prose expansion requires an LLM. Check your configuration.
 - **Validation failures**: The LLM output didn't match expected format (retried once, then fell back).
-- **Network timeout**: Local LLM inference can be slow; generation may have timed out.
+- **Network timeout**: Generation may have timed out.
 
 **How to check:**
 - Enable debug logging: `NEON_SOUL_DEBUG=1 /neon-soul synthesize --force`
@@ -411,3 +434,19 @@ Dimension classification uses semantic analysis. If results seem wrong:
 - Check the axiom's source signals (`/neon-soul audit <axiom-id>`)
 - The LLM classifier uses the axiom's native text, which may have different semantic weight than you expect
 - Unknown dimensions default to `vibe` (logged with `NEON_SOUL_DEBUG=1`)
+
+### Soul synthesis paused / LLM unavailable
+
+If you see "Soul synthesis paused: Your agent's LLM is temporarily unavailable":
+
+**What this means:**
+- Your agent needs an active LLM connection for semantic matching
+- The skill failed to reach the LLM after retrying
+
+**What to try:**
+- Check your agent is running and connected
+- Check network connectivity
+- If using Ollama locally, verify it's running: `curl http://localhost:11434/api/tags`
+- Try again in a moment - transient failures are common
+
+**Your data is safe.** When LLM is unavailable, NEON-SOUL stops without writing. Nothing was sent anywhere.
