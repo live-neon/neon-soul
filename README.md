@@ -302,6 +302,8 @@ neon-soul/
 - **OpenClaw**: Production soul document implementation
 - **soul.md**: Philosophical foundation for AI identity
 - **Multiverse compass.md**: Practical CJK-compressed principles (7.32:1 ratio)
+- **[AI Music Context](https://github.com/geeksinthewoods/ai-music-context)** - Context warming methodology for human-AI music creation. Same principle applied to creative expression: depth over speed, emergence over optimization.
+- **[Live Neon Skills](https://github.com/live-neon/skills)** - PBD skills for principle extraction, used in the soul synthesis pipeline.
 
 ---
 
