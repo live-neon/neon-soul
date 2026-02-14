@@ -5,7 +5,7 @@ Test data for validating the NEON-SOUL extraction and compression pipeline.
 ## Directory Structure
 
 ```
-test-fixtures/
+tests/fixtures/samples/
 ├── souls/
 │   ├── raw/              # Downloaded SOUL.md templates from souls.directory
 │   ├── principles/       # Extracted principles per template (Single-Source PBD output)

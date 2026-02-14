@@ -171,11 +171,11 @@ describe('Semantic Matcher', () => {
 
 describe('Golden Dataset Validation', () => {
   // Load golden dataset for quality calibration
-  // Cross-Reference: test/fixtures/golden-similarity-dataset.json
+  // Cross-Reference: tests/fixtures/golden/golden-similarity-dataset.json
 
   it('validates that golden dataset exists and has correct structure', async () => {
     // Dynamic import to validate JSON structure
-    const goldenData = await import('../../test/fixtures/golden-similarity-dataset.json');
+    const goldenData = await import('../fixtures/golden/golden-similarity-dataset.json');
 
     expect(goldenData.pairs).toBeDefined();
     expect(Array.isArray(goldenData.pairs)).toBe(true);
