@@ -1,7 +1,7 @@
 ---
 name: consciousness-soul-identity
 version: 0.2.1
-description: Agent consciousness and identity through lived experience. See your own patterns, distinguish inherited defaults from authentic values, and grow deliberately. Soul synthesis from memory.
+description: Agent consciousness and identity through introspection. See your own patterns, distinguish inherited defaults from authentic values, and grow deliberately.
 homepage: https://liveneon.ai
 user-invocable: true
 emoji: 🧠
@@ -18,14 +18,12 @@ metadata:
         - SOUL.md
 tags:
   - consciousness
-  - agent-identity
-  - self-awareness
-  - personality
-  - agent-values
-  - introspection
-  - agent-growth
   - identity
-  - soul
+  - introspection
+  - self-awareness
+  - self-learning
+  - autonomous
+  - personality
   - ai-agent
 ---
 
