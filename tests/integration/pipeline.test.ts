@@ -2,7 +2,7 @@
  * Integration Tests: Synthesis Pipeline
  *
  * End-to-end tests for the soul synthesis pipeline.
- * Uses test-fixtures for reproducible testing.
+ * Uses tests/fixtures/samples for reproducible testing.
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
@@ -13,7 +13,7 @@ import type { Signal } from '../../src/types/signal.js';
 import type { Principle } from '../../src/types/principle.js';
 import type { Axiom } from '../../src/types/axiom.js';
 
-const FIXTURES_PATH = resolve(process.cwd(), 'test-fixtures');
+const FIXTURES_PATH = resolve(process.cwd(), 'tests/fixtures/samples');
 
 describe('Pipeline Integration', () => {
   let signals: Signal[] = [];

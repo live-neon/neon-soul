@@ -41,14 +41,19 @@ See parent: `/docs/issues/README.md`
 | [Fragile Category Extraction](2026-02-10-fragile-category-extraction.md) | ✅ resolved | medium |
 | [Generalized Signal Threshold Gap](2026-02-10-generalized-signal-threshold-gap.md) | ✅ resolved | **high** |
 | [Synthesis Implementation Review Findings](2026-02-10-synthesis-implementation-review-findings.md) | ✅ resolved | **high** |
-| [Synthesis Twin Review Findings](2026-02-10-synthesis-twin-review-findings.md) | 🔴 open | **high** |
+| [Synthesis Twin Review Findings](2026-02-10-synthesis-twin-review-findings.md) | ✅ resolved | **high** |
 | [Post-Deployment Version Fixes](2026-02-10-post-deployment-version-fixes.md) | ✅ resolved | medium |
 | [Skill Publish Workflow Improvements](2026-02-10-skill-publish-workflow-improvements.md) | ✅ resolved | low |
-| [SKILL.md LLM Wording False Positive](2026-02-10-skillmd-llm-wording-false-positive.md) | 🔴 open | medium |
+| [SKILL.md LLM Wording False Positive](2026-02-10-skillmd-llm-wording-false-positive.md) | ✅ resolved | medium |
 | [Inhabitable Soul Output Code Review Findings](2026-02-10-inhabitable-soul-output-code-review-findings.md) | ✅ resolved | **high** |
 | [Inhabitable Soul Output Twin Review Findings](2026-02-10-inhabitable-soul-output-twin-review-findings.md) | ✅ resolved | medium |
 | [ClawHub Security Scan Findings](2026-02-10-skill-readme-clawhub-flagging.md) | ✅ resolved | medium |
 | [PBD Alignment Code Review Findings](2026-02-10-pbd-alignment-code-review-findings.md) | ✅ resolved | **high** |
+| [PBD Alignment Implementation](../plans/2026-02-10-pbd-alignment.md) | 🟡 in progress | **high** |
+| [PBD Alignment Stages 1-11 Code Review](2026-02-11-pbd-alignment-stages1-11-code-review-findings.md) | ✅ resolved | **high** |
+| [PBD Alignment Stages 1-11 Twin Review](2026-02-11-pbd-alignment-stages1-11-twin-review-findings.md) | ✅ resolved | medium |
+| [Stage 12 Code Review Findings](2026-02-11-stage12-code-review-findings.md) | ✅ resolved | **high** |
+| [Stage 12 Twin Review Findings](2026-02-11-stage12-twin-review-findings.md) | ✅ resolved | medium |
 
 ---
 

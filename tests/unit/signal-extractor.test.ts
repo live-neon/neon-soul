@@ -91,7 +91,7 @@ This is a line that is long enough to be considered for signal extraction`;
       }
     });
 
-    it('generates embeddings for signals', async () => {
+    it('does not generate embeddings for signals (deprecated in v0.2.0)', async () => {
       const llm = createMockLLM();
       const content = `I value continuous learning and personal growth over time.`;
 
@@ -100,10 +100,9 @@ This is a line that is long enough to be considered for signal extraction`;
       });
 
       if (signals.length > 0) {
-        // Each signal should have a 384-dimensional embedding
+        // Embeddings are optional and not generated in v0.2.0 (LLM-based similarity)
         for (const signal of signals) {
-          expect(Array.isArray(signal.embedding)).toBe(true);
-          expect(signal.embedding.length).toBe(384);
+          expect(signal.embedding).toBeUndefined();
         }
       }
     });

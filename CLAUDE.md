@@ -2,7 +2,7 @@
 
 AI identity compression with full provenance tracking. Generates soul documents from memory files.
 
-**Stack**: TypeScript, Node.js 22+, Vitest, @xenova/transformers (local embeddings)
+**Stack**: TypeScript, Node.js 22+, Vitest, LLM-based semantic similarity
 
 ---
 
@@ -11,7 +11,7 @@ AI identity compression with full provenance tracking. Generates soul documents 
 ```bash
 npm install          # Install dependencies
 npm run build        # Compile TypeScript
-npm test             # Run tests (286 passing)
+npm test             # Run tests
 npm run lint         # Type check
 ```
 
@@ -25,14 +25,17 @@ src/
 ├── skill-entry.ts        # OpenClaw skill loader
 ├── commands/             # Skill commands (synthesize, status, audit, trace, rollback)
 ├── lib/                  # Core library
-│   ├── pipeline.ts       # Main orchestration (8 stages)
-│   ├── embeddings.ts     # Local 384-dim embeddings
+│   ├── pipeline.ts       # Main orchestration (7-stage pipeline)
+│   ├── llm-similarity.ts # LLM-based semantic similarity
 │   ├── principle-store.ts # N-count convergence
 │   └── soul-generator.ts # SOUL.md generation
 └── types/                # TypeScript interfaces
 
-skill/
-└── SKILL.md              # OpenClaw skill manifest
+skills/
+├── neon-soul/            # Primary skill (developer voice)
+│   └── SKILL.md
+└── consciousness-soul-identity/  # SEO skill (agent voice)
+    └── SKILL.md
 
 tests/
 ├── integration/          # Unit/integration tests
@@ -77,7 +80,7 @@ npm run test:watch                 # Watch mode
 
 - `src/lib/pipeline.ts:1-50` - Pipeline stages overview
 - `src/types/signal.ts` - Core data types
-- `skill/SKILL.md` - Skill manifest and commands
+- `skills/neon-soul/SKILL.md` - Skill manifest and commands
 - `docs/ARCHITECTURE.md` - System design reference
 
 ---

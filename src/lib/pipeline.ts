@@ -21,7 +21,7 @@
 
 import { existsSync } from 'node:fs';
 // CR-2 FIX: Removed unused writeFile import - now using writeFileAtomic from persistence.ts
-import { dirname, resolve, normalize } from 'node:path';
+import { dirname, resolve, normalize, sep } from 'node:path';
 import { homedir } from 'node:os';
 // TrajectoryTracker removed - single-pass architecture doesn't need iteration tracking
 import { collectSources as collectSourcesFromWorkspace, type SourceCollection as CollectedSources } from './source-collector.js';
@@ -334,7 +334,6 @@ function validatePath(inputPath: string): string {
 
   // C-2 FIX: Require exact match OR path separator after root
   // Prevents /tmp2/evil from matching /tmp, /home/user_evil from matching /home/user
-  const sep = require('node:path').sep;
   const isAllowed = allowedRoots.some(root =>
     normalized === root || normalized.startsWith(root + sep)
   );

@@ -125,6 +125,33 @@ const DEFAULT_DIMENSION_HINTS: Record<string, string> = {
 };
 
 /**
+ * Default elicitation type mappings for common text patterns.
+ * Stage 12 PBD Alignment: Signal source classification.
+ */
+const DEFAULT_ELICITATION_HINTS: Record<string, string> = {
+  unprompted: 'agent-initiated',
+  volunteered: 'agent-initiated',
+  caveat: 'agent-initiated',
+  'without being asked': 'agent-initiated',
+  'chose to': 'agent-initiated',
+  asked: 'user-elicited',
+  requested: 'user-elicited',
+  'asked for help': 'user-elicited',
+  'direct response': 'user-elicited',
+  'when prompted': 'user-elicited',
+  formal: 'context-dependent',
+  'business setting': 'context-dependent',
+  'adapted to': 'context-dependent',
+  'specific context': 'context-dependent',
+  situational: 'context-dependent',
+  'across contexts': 'consistent-across-context',
+  consistently: 'consistent-across-context',
+  'regardless of': 'consistent-across-context',
+  always: 'consistent-across-context',
+  invariably: 'consistent-across-context',
+};
+
+/**
  * Default signal type mappings for common text patterns.
  */
 const DEFAULT_SIGNAL_TYPE_HINTS: Record<string, string> = {
@@ -254,6 +281,11 @@ export function createMockLLM(config: MockLLMConfig = {}): MockLLMProvider {
     // Check if this is signal type classification
     if (context?.includes('signal') || prompt.includes('signal type')) {
       inferredCategory = inferCategory(prompt, categories, DEFAULT_SIGNAL_TYPE_HINTS);
+    }
+
+    // Check if this is elicitation type classification (Stage 12)
+    if (context?.includes('elicitation') || prompt.includes('originated')) {
+      inferredCategory = inferCategory(prompt, categories, DEFAULT_ELICITATION_HINTS);
     }
 
     // Check for yes/no classification (identity signal detection)
@@ -418,6 +450,190 @@ export function createFailingMockLLM(errorMessage: string = 'Mock LLM error'): M
     },
     async generate(): Promise<GenerationResult> {
       throw new Error(errorMessage);
+    },
+  };
+}
+
+/**
+ * Create a mock LLM for semantic similarity testing.
+ * Used by matcher.ts to test LLM-based principle matching (Stage 2).
+ *
+ * Cross-Reference: docs/plans/2026-02-12-llm-based-similarity.md
+ */
+export function createSimilarityMockLLM(): MockLLMProvider {
+  const baseMock = createMockLLM();
+
+  // Known semantic equivalences for matching
+  // Format: [word1, word2] means texts containing word1 match texts containing word2
+  const equivalences = [
+    ['honest', 'truthful'],
+    ['capabilities', 'abilities'],
+    ['limitations', 'constraints'],
+    ['safety', 'secure'],
+    ['readability', 'readable'],
+    ['concise', 'brief'],
+    ['meaningful', 'deep'],
+  ];
+
+  /**
+   * Check if two texts are semantically equivalent based on known equivalences.
+   * Also matches identical texts (after normalization).
+   */
+  function areEquivalent(text1: string, text2: string): boolean {
+    const lower1 = text1.toLowerCase().trim();
+    const lower2 = text2.toLowerCase().trim();
+
+    // Exact match (after normalization)
+    if (lower1 === lower2) {
+      return true;
+    }
+
+    for (const [word1, word2] of equivalences) {
+      // Check if text1 has word1 and text2 has word2 (or vice versa)
+      const t1HasW1 = lower1.includes(word1);
+      const t1HasW2 = lower1.includes(word2);
+      const t2HasW1 = lower2.includes(word1);
+      const t2HasW2 = lower2.includes(word2);
+
+      // Match if one has word1 and other has word2
+      if ((t1HasW1 && t2HasW2) || (t1HasW2 && t2HasW1)) {
+        return true;
+      }
+      // Also match if both have the same word (same concept)
+      if ((t1HasW1 && t2HasW1) || (t1HasW2 && t2HasW2)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  return {
+    ...baseMock,
+    async generate(prompt: string): Promise<GenerationResult> {
+      const lowerPrompt = prompt.toLowerCase();
+
+      // Handle batch comparison prompts (from llm-similarity.ts tryBatchComparison)
+      // Format: "Target statement: <text> \n\nCandidates:\n0. <text>\n1. <text>"
+      if (lowerPrompt.includes('candidates:') && lowerPrompt.includes('target statement:')) {
+        // Extract target text - handle both quoted and unquoted formats
+        let targetText = '';
+        const quotedTargetMatch = prompt.match(/Target statement:\s*"([^"]+)"/i);
+        if (quotedTargetMatch) {
+          targetText = quotedTargetMatch[1] ?? '';
+        } else {
+          // Try unquoted format
+          const unquotedTargetMatch = prompt.match(/Target statement:\s*([^\n]+)/i);
+          targetText = unquotedTargetMatch?.[1]?.trim() ?? '';
+        }
+
+        // Parse candidates - handle both quoted and unquoted formats
+        const candidates: Array<{ index: number; text: string }> = [];
+        const lines = prompt.split('\n');
+        for (const line of lines) {
+          // Match "N. text" or "N. \"text\""
+          const candidateMatch = line.match(/^(\d+)\.\s*"?([^"\n]+)"?\s*$/);
+          if (candidateMatch) {
+            candidates.push({
+              index: parseInt(candidateMatch[1] ?? '0', 10),
+              text: candidateMatch[2] ?? '',
+            });
+          }
+        }
+
+        // Find best match based on semantic equivalences
+        for (const candidate of candidates) {
+          if (areEquivalent(targetText, candidate.text)) {
+            return { text: `{"bestMatchIndex": ${candidate.index}, "confidence": "high"}` };
+          }
+        }
+
+        // No match found
+        return { text: '{"bestMatchIndex": -1, "noMatch": true}' };
+      }
+
+      // Handle single pair comparison prompts (from llm-similarity.ts isSemanticallyEquivalent)
+      if (lowerPrompt.includes('statement a:') && lowerPrompt.includes('statement b:')) {
+        // Extract both statements
+        const stmtAMatch = prompt.match(/Statement A:\s*([^\n]+)/i);
+        const stmtBMatch = prompt.match(/Statement B:\s*([^\n]+)/i);
+        const stmtA = stmtAMatch?.[1]?.trim() ?? '';
+        const stmtB = stmtBMatch?.[1]?.trim() ?? '';
+
+        if (areEquivalent(stmtA, stmtB)) {
+          return { text: '{"equivalent": true, "confidence": "high"}' };
+        }
+
+        // Default: not equivalent
+        return { text: '{"equivalent": false, "confidence": "medium"}' };
+      }
+
+      // Fall back to base mock for other prompts
+      return baseMock.generate(prompt);
+    },
+  };
+}
+
+/**
+ * Create a mock LLM that returns null category (for fallback testing).
+ * M-2 FIX: Tests the fallback behavior when classification exhausts retries.
+ */
+export function createNullCategoryMockLLM(): MockLLMProvider {
+  const baseMock = createMockLLM();
+
+  return {
+    ...baseMock,
+    async classify<T>(): Promise<ClassificationResult<T>> {
+      // Return null category to trigger fallback behavior
+      return {
+        category: null,
+        confidence: 0,
+        reasoning: 'Mock returning null to test fallback',
+      };
+    },
+  };
+}
+
+/**
+ * Create a mock LLM for tension detection testing.
+ * Detects tensions when axiom pairs contain conflicting keywords.
+ */
+export function createTensionDetectorMockLLM(): MockLLMProvider {
+  const baseMock = createMockLLM();
+
+  return {
+    ...baseMock,
+    async generate(prompt: string): Promise<GenerationResult> {
+      // Extract value1 and value2 from prompt
+      const value1Match = prompt.match(/<value1>([\s\S]*?)<\/value1>/);
+      const value2Match = prompt.match(/<value2>([\s\S]*?)<\/value2>/);
+
+      const value1 = value1Match?.[1]?.toLowerCase() ?? '';
+      const value2 = value2Match?.[1]?.toLowerCase() ?? '';
+
+      // Check for known tension patterns
+      const tensionPatterns = [
+        { word1: 'honesty', word2: 'kindness' },
+        { word1: 'truth', word2: 'kindness' },
+        { word1: 'honesty', word2: 'lie' },
+        { word1: 'efficiency', word2: 'thoroughness' },
+        { word1: 'speed', word2: 'quality' },
+        { word1: 'freedom', word2: 'structure' },
+      ];
+
+      for (const pattern of tensionPatterns) {
+        const hasPattern =
+          (value1.includes(pattern.word1) && value2.includes(pattern.word2)) ||
+          (value1.includes(pattern.word2) && value2.includes(pattern.word1));
+
+        if (hasPattern) {
+          return {
+            text: `These values create a tension: one prioritizes ${pattern.word1} while the other prioritizes ${pattern.word2}.`,
+          };
+        }
+      }
+
+      // No tension detected
+      return { text: 'none' };
     },
   };
 }

@@ -24,8 +24,6 @@
 import { mkdir, writeFile, readFile, readdir, symlink, unlink } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { existsSync } from 'node:fs';
-import { embed } from './embeddings.js';
-import { cosineSimilarity } from './matcher.js';
 import type { TrajectoryMetrics } from './trajectory.js';
 import type { GeneratedSoul } from './soul-generator.js';
 
@@ -83,8 +81,11 @@ export interface EvolutionHistory {
 export interface VersionData {
   /** Soul markdown content */
   soulContent: string;
-  /** Soul embedding (384-dim) */
-  embedding: number[];
+  /**
+   * @deprecated Since v0.2.0, embeddings are no longer generated.
+   * This field is kept for backward compatibility with existing version files.
+   */
+  embedding?: number[];
   /** Metrics */
   metrics: {
     tokenCount: number;
@@ -144,8 +145,18 @@ export function createEvolutionTracker(historyPath: string): EvolutionTracker {
 
     try {
       const soulContent = await readFile(join(versionPath, 'soul.md'), 'utf-8');
-      const embeddingJson = await readFile(join(versionPath, 'soul-embedding.json'), 'utf-8');
       const metricsJson = await readFile(join(versionPath, 'metrics.json'), 'utf-8');
+
+      // Try to load embedding (may not exist in v0.2.0+ versions)
+      let embedding: number[] | undefined;
+      const embeddingPath = join(versionPath, 'soul-embedding.json');
+      if (existsSync(embeddingPath)) {
+        try {
+          embedding = JSON.parse(await readFile(embeddingPath, 'utf-8'));
+        } catch {
+          // Ignore corrupt embedding files
+        }
+      }
 
       let trajectory: TrajectoryMetrics | undefined;
       const trajectoryPath = join(versionPath, 'trajectory.json');
@@ -159,13 +170,16 @@ export function createEvolutionTracker(historyPath: string): EvolutionTracker {
         evolution = JSON.parse(await readFile(evolutionPath, 'utf-8'));
       }
 
-      return {
+      const versionData: VersionData = {
         soulContent,
-        embedding: JSON.parse(embeddingJson),
         metrics: JSON.parse(metricsJson),
         trajectory,
         evolution,
       };
+      if (embedding !== undefined) {
+        versionData.embedding = embedding;
+      }
+      return versionData;
     } catch {
       return undefined;
     }
@@ -182,9 +196,6 @@ export function createEvolutionTracker(historyPath: string): EvolutionTracker {
       const versionPath = join(basePath, timestamp);
       await mkdir(versionPath, { recursive: true });
 
-      // Generate soul embedding
-      const embedding = await embed(soul.content);
-
       // Calculate content hash
       const contentHash = simpleHash(soul.content);
 
@@ -196,12 +207,6 @@ export function createEvolutionTracker(historyPath: string): EvolutionTracker {
 
       // Save soul content
       await writeFile(join(versionPath, 'soul.md'), soul.content);
-
-      // Save embedding
-      await writeFile(
-        join(versionPath, 'soul-embedding.json'),
-        JSON.stringify(embedding)
-      );
 
       // Save metrics
       const metrics = {
@@ -230,9 +235,9 @@ export function createEvolutionTracker(historyPath: string): EvolutionTracker {
         const prevData = await this.getLatest();
         if (prevData) {
           const evolution = calculateEvolutionMetrics(
-            embedding,
-            prevData.embedding,
-            history.origin ? (await loadVersionData(history.origin.timestamp))?.embedding : undefined,
+            soul.content,
+            prevData.soulContent,
+            history.origin ? (await loadVersionData(history.origin.timestamp))?.soulContent : undefined,
             axiomCount,
             prevData.metrics.axiomCount
           );
@@ -319,8 +324,8 @@ export function createEvolutionTracker(historyPath: string): EvolutionTracker {
       }
 
       return calculateEvolutionMetrics(
-        data2.embedding,
-        data1.embedding,
+        data2.soulContent,
+        data1.soulContent,
         undefined,
         data2.metrics.axiomCount,
         data1.metrics.axiomCount
@@ -330,18 +335,34 @@ export function createEvolutionTracker(historyPath: string): EvolutionTracker {
 }
 
 /**
+ * Calculate Jaccard similarity between two sets of words.
+ * Used for text-based similarity comparison.
+ */
+function jaccardSimilarity(text1: string, text2: string): number {
+  const words1 = new Set(text1.toLowerCase().split(/\s+/).filter(w => w.length > 2));
+  const words2 = new Set(text2.toLowerCase().split(/\s+/).filter(w => w.length > 2));
+
+  const intersection = new Set([...words1].filter(w => words2.has(w)));
+  const union = new Set([...words1, ...words2]);
+
+  if (union.size === 0) return 1;
+  return intersection.size / union.size;
+}
+
+/**
  * Calculate evolution metrics between versions.
+ * Uses text-based Jaccard similarity (embeddings deprecated in v0.2.0).
  */
 function calculateEvolutionMetrics(
-  currentEmbedding: number[],
-  previousEmbedding: number[],
-  originEmbedding: number[] | undefined,
+  currentContent: string,
+  previousContent: string,
+  originContent: string | undefined,
   currentAxiomCount: number,
   previousAxiomCount: number
 ): EvolutionMetrics {
-  const previousSimilarity = cosineSimilarity(currentEmbedding, previousEmbedding);
-  const originSimilarity = originEmbedding
-    ? cosineSimilarity(currentEmbedding, originEmbedding)
+  const previousSimilarity = jaccardSimilarity(currentContent, previousContent);
+  const originSimilarity = originContent
+    ? jaccardSimilarity(currentContent, originContent)
     : previousSimilarity;
 
   // Axiom retention (approximate - would need actual comparison)

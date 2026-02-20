@@ -31,12 +31,8 @@ import type {
 } from '../types/interview.js';
 import { DEFAULT_INTERVIEW_CONFIG } from '../types/interview.js';
 import type { Signal, SoulCraftDimension } from '../types/signal.js';
-import { embed } from './embeddings.js';
-import { cosineSimilarity } from './matcher.js';
 import { QUESTION_BANK } from './question-bank.js';
 
-// Semantic similarity threshold for follow-up trigger matching
-const FOLLOW_UP_TRIGGER_THRESHOLD = 0.7;
 
 /**
  * Creates an interview flow instance.
@@ -245,10 +241,9 @@ export class InterviewFlow {
   ): Promise<Signal[]> {
     const signals: Signal[] = [];
 
-    // IM-6 FIX: Truncate text BEFORE embedding to prevent memory issues
+    // IM-6 FIX: Truncate text to prevent memory issues
     const MAX_TEXT_LENGTH = 2000;
     const truncatedText = response.text.slice(0, MAX_TEXT_LENGTH);
-    const embedding = await embed(truncatedText);
 
     // IM-5 FIX: Derive confidence from response quality indicators
     const confidence = this.calculateResponseConfidence(response.text);
@@ -257,7 +252,6 @@ export class InterviewFlow {
       id: randomUUID(),
       type: question.signalType,
       text: truncatedText.slice(0, 200), // Further truncate for signal text
-      embedding,
       confidence,
       dimension: question.dimension,
       source: {
@@ -272,7 +266,7 @@ export class InterviewFlow {
     signals.push(signal);
 
     // IM-3 FIX: Check for follow-up question triggers
-    // CRITICAL CONSTRAINT FIX: Now uses semantic matching instead of keyword matching
+    // Note: Follow-up trigger evaluation now uses LLM-based similarity (see matcher.ts)
     const triggeredFollowUps = await this.evaluateFollowUpTriggers(question, response.text);
     for (const followUp of triggeredFollowUps) {
       // Check if follow-up was already answered
@@ -281,12 +275,10 @@ export class InterviewFlow {
       );
       if (followUpResponse) {
         const followUpTruncated = followUpResponse.text.slice(0, MAX_TEXT_LENGTH);
-        const followUpEmbedding = await embed(followUpTruncated);
         signals.push({
           id: randomUUID(),
           type: followUp.signalType,
           text: followUpTruncated.slice(0, 200),
-          embedding: followUpEmbedding,
           confidence: this.calculateResponseConfidence(followUpResponse.text),
           dimension: question.dimension,
           source: {
@@ -328,37 +320,28 @@ export class InterviewFlow {
 
   /**
    * IM-3 FIX: Evaluate follow-up question triggers against response text.
-   * CRITICAL CONSTRAINT FIX: Uses semantic similarity instead of keyword matching.
-   * Trigger patterns are now matched semantically using embeddings + cosine similarity.
+   * Uses keyword-based matching (pipe-separated trigger patterns).
+   * Trigger patterns are matched case-insensitively against response text.
    */
-  private async evaluateFollowUpTriggers(
+  private evaluateFollowUpTriggers(
     question: InterviewQuestion,
     responseText: string
-  ): Promise<InterviewQuestion['followUps']> {
+  ): InterviewQuestion['followUps'] {
     if (!question.followUps || question.followUps.length === 0) {
       return [];
     }
 
     const triggeredFollowUps: InterviewQuestion['followUps'] = [];
-
-    // Generate embedding for response text
-    const responseEmbedding = await embed(responseText.slice(0, 500));
+    const lowerResponse = responseText.toLowerCase();
 
     for (const followUp of question.followUps) {
-      // Trigger pattern is a pipe-separated list of semantic concepts
+      // Trigger pattern is a pipe-separated list of keywords/phrases
       const triggerPatterns = followUp.trigger.split('|');
 
-      // Check if any trigger pattern matches semantically
-      let isTriggered = false;
-      for (const pattern of triggerPatterns) {
-        const patternEmbedding = await embed(pattern.trim());
-        const similarity = cosineSimilarity(responseEmbedding, patternEmbedding);
-
-        if (similarity >= FOLLOW_UP_TRIGGER_THRESHOLD) {
-          isTriggered = true;
-          break;
-        }
-      }
+      // Check if any trigger pattern matches (case-insensitive)
+      const isTriggered = triggerPatterns.some((pattern) =>
+        lowerResponse.includes(pattern.trim().toLowerCase())
+      );
 
       if (isTriggered) {
         triggeredFollowUps.push(followUp);

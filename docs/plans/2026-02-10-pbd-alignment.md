@@ -1,11 +1,13 @@
 # Plan: PBD Methodology Alignment
 
 **Date**: 2026-02-10
-**Status**: Ready for Implementation
-**Project**: projects/neon-soul
+**Status**: Complete (All 17 stages implemented)
+**Project**: projects/live-neon/neon-soul
 **Trigger**: think hard
 **Review Required**: Complete (twin review + code review findings addressed)
-**Code Review**: All 13 findings (3 critical, 6 important, 4 minor) resolved in plan
+**Code Review (Stages 1-12)**: All 13 findings (3 critical, 6 important, 4 minor) resolved in plan
+**Code Review (Stages 13-17)**: `docs/issues/2026-02-12-pbd-stages-13-17-code-review-findings.md` (resolved)
+**Twin Review (Stages 13-17)**: `docs/issues/2026-02-12-pbd-stages-13-17-twin-review-findings.md` (2 important, 5 minor)
 
 ---
 
@@ -1698,21 +1700,21 @@ function computeWeightedNCount(principle: Principle): number {
 **Tasks**:
 
 1. **Update ARCHITECTURE.md** with cross-project features:
-   - [ ] Signal source classification (agent-initiated vs user-elicited)
-   - [ ] Cycle management (initial/incremental/full-resynthesis)
-   - [ ] Provenance tracking (SSEM model: self/curated/external)
-   - [ ] Anti-echo-chamber rule documentation
-   - [ ] Weight composition formula diagram
+   - [x] Signal source classification (agent-initiated vs user-elicited)
+   - [x] Cycle management (initial/incremental/full-resynthesis)
+   - [x] Provenance tracking (SSEM model: self/curated/external)
+   - [x] Anti-echo-chamber rule documentation
+   - [x] Weight composition formula diagram
 
 2. **Update skill documentation**:
-   - [ ] Document `NEON_SOUL_SKIP_META_SYNTHESIS` and related env vars
-   - [ ] Document `--force-resynthesis` flag
-   - [ ] Add provenance and anti-echo-chamber to feature list
+   - [x] Document `NEON_SOUL_SKIP_META_SYNTHESIS` and related env vars
+   - [x] Document `--force-resynthesis` flag
+   - [x] Add provenance and anti-echo-chamber to feature list
 
 3. **Update README with feature overview**:
-   - [ ] Synthesis metrics section (what the tool reports)
-   - [ ] Anti-echo-chamber protection explanation
-   - [ ] Cycle management behavior
+   - [x] Synthesis metrics section (what the tool reports)
+   - [x] Anti-echo-chamber protection explanation
+   - [x] Cycle management behavior
 
 4. **Run workflow verification commands**:
    ```bash
@@ -1723,11 +1725,11 @@ function computeWeightedNCount(principle: Principle): number {
    ```
 
 **Acceptance Criteria**:
-- [ ] ARCHITECTURE.md documents all 16 stages of PBD alignment
-- [ ] Skill documentation includes all configuration options
-- [ ] README reflects current feature set
-- [ ] Workflow verification commands pass
-- [ ] No stale references to pre-PBD behavior
+- [x] ARCHITECTURE.md documents all 16 stages of PBD alignment
+- [x] Skill documentation includes all configuration options
+- [x] README reflects current feature set
+- [x] Workflow verification commands pass
+- [x] No stale references to pre-PBD behavior
 
 **Commit**: `docs(neon-soul): final documentation update for PBD alignment`
 
@@ -1985,3 +1987,35 @@ Consolidated findings:
 - I2: Remove duplicate verification section (lines 1334-1359)
 - I3: Document weight composition formula in Stage 16
 - I5: Add Operator Experience section with workflow examples
+
+---
+
+## Future Enhancements (Post-17 Stages)
+
+### Bootstrap→Learn→Enforce for Signal Quality
+
+**Source**: `research/external-grounding/experiments/manifold-jump-unified-framework/`
+
+**Concept**: Apply regime detection methodology from the Manifold Jump Unified Framework to signal extraction. The framework prevents:
+- **Stuck regimes**: Low semantic shift, repetitive patterns (N=3 collapse)
+- **Chaotic regimes**: High variance, semantic drift, loss of coherence
+
+**Potential Stage 18: Signal Quality Regime Detection**
+
+| Component | Application to NEON-SOUL |
+|-----------|--------------------------|
+| Bootstrap phase | Collect baseline signal distributions (variance, clustering density) |
+| Learn phase | Derive percentile thresholds for "healthy" signal distributions |
+| Enforce phase | Flag signals in stuck (repetitive) or chaotic (high variance) regimes |
+
+**Benefits**:
+- Statistical thresholds (bootstrap CIs) instead of magic numbers
+- Detect repetitive signals that don't add information (stuck regime)
+- Detect high-variance signals that won't cluster well (chaotic regime)
+- Improve signal filtering quality before clustering
+
+**Prerequisites**: Complete Stages 1-17 first. This enhancement builds on the weighted clustering and orphan tracking already implemented.
+
+**Research basis**: 2,892 trials, 7 models, p<0.01 validation in manifold-jump research.
+
+**Estimated scope**: ~100-150 lines in new `signal-quality-detector.ts` module.

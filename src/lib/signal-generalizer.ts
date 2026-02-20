@@ -8,7 +8,6 @@ import { createHash } from 'node:crypto';
 import type { Signal, GeneralizedSignal, GeneralizationProvenance } from '../types/signal.js';
 import type { LLMProvider } from '../types/llm.js';
 import { requireLLM } from '../types/llm.js';
-import { embed, embedBatch } from './embeddings.js';
 import { logger } from './logger.js';
 import { LRUCache } from 'lru-cache';
 import { buildPrompt, validateGeneralization } from './generalization-helpers.js';
@@ -66,9 +65,6 @@ export async function generalizeSignal(
     usedFallback = true;
   }
 
-  // Generate embedding for the (possibly fallback) text
-  const embedding = await embed(generalizedText);
-
   const provenance: GeneralizationProvenance = {
     original_text: signal.text,
     generalized_text: generalizedText,
@@ -81,7 +77,6 @@ export async function generalizeSignal(
   return {
     original: signal,
     generalizedText,
-    embedding,
     provenance,
   };
 }
@@ -175,15 +170,11 @@ export async function generalizeSignals(
       if (usedFallback) fallbackCount++;
     }
 
-    // Batch embed all generalized texts
-    const embeddings = await embedBatch(generalizedTexts);
-
     // Build results
     for (let j = 0; j < batch.length; j++) {
       const signal = batch[j]!;
       const genText = generalizedTexts[j]!;
       const fallback = usedFallbacks[j]!;
-      const emb = embeddings[j]!;
 
       const provenance: GeneralizationProvenance = {
         original_text: signal.text,
@@ -197,7 +188,6 @@ export async function generalizeSignals(
       batchResults.push({
         original: signal,
         generalizedText: genText,
-        embedding: emb,
         provenance,
       });
     }
@@ -279,9 +269,12 @@ function getContentHash(signalText: string): string {
  * Get cache key for a signal.
  * Includes signal ID, content hash, and prompt version for proper invalidation.
  */
-function getCacheKey(signalId: string, signalText: string): string {
+/**
+ * I-3 FIX: Cache key now includes model to prevent cross-model contamination.
+ */
+function getCacheKey(signalId: string, signalText: string, model: string): string {
   const textHash = getContentHash(signalText);
-  return `${signalId}:${textHash}:${PROMPT_VERSION}`;
+  return `${signalId}:${textHash}:${PROMPT_VERSION}:${model}`;
 }
 
 /**
@@ -320,9 +313,10 @@ export async function generalizeSignalsWithCache(
   const uncached: Signal[] = [];
   const cachedResults = new Map<string, GeneralizedSignal>();
 
-  // Check cache for each signal (key includes content hash)
+  // Check cache for each signal (key includes content hash and model)
+  // I-3 FIX: Include model in cache key to prevent cross-model contamination
   for (const signal of signals) {
-    const key = getCacheKey(signal.id, signal.text);
+    const key = getCacheKey(signal.id, signal.text, model);
     const cached = generalizationCache.get(key);
     if (cached) {
       cachedResults.set(signal.id, cached);
@@ -341,9 +335,9 @@ export async function generalizeSignalsWithCache(
   if (uncached.length > 0) {
     freshResults = await generalizeSignals(llm, uncached, model, options);
 
-    // Store in cache (key includes content hash)
+    // Store in cache (key includes content hash and model)
     for (const result of freshResults) {
-      const key = getCacheKey(result.original.id, result.original.text);
+      const key = getCacheKey(result.original.id, result.original.text, model);
       generalizationCache.set(key, result);
     }
   }

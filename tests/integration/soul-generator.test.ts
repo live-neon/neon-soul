@@ -12,7 +12,7 @@ import { generateSoul, formatAxiom } from '../../src/lib/soul-generator.js';
 import type { Axiom } from '../../src/types/axiom.js';
 import type { Principle } from '../../src/types/principle.js';
 
-const FIXTURES_PATH = resolve(process.cwd(), 'test-fixtures');
+const FIXTURES_PATH = resolve(process.cwd(), 'tests/fixtures/samples');
 
 describe('Soul Generator', () => {
   let axioms: Axiom[];

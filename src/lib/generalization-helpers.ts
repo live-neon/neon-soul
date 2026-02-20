@@ -5,10 +5,12 @@
  * Extracted from signal-generalizer.ts for MCE compliance.
  */
 
+import { sanitizeForPrompt as baseSanitize } from './semantic-classifier.js';
+
 /** Maximum allowed length for generalized output */
 export const MAX_OUTPUT_LENGTH = 150;
 
-/** Maximum input length for prompt safety */
+/** Maximum input length for prompt safety (stricter than base 1000) */
 export const MAX_INPUT_LENGTH = 500;
 
 /**
@@ -18,16 +20,20 @@ export const MAX_INPUT_LENGTH = 500;
 export const PRONOUN_PATTERN = /\b(I|we|you|my|our|your|me|us|myself|ourselves|yourself|yourselves)\b/i;
 
 /**
- * Sanitize user input to prevent prompt injection.
- * Escapes XML-like tags, markdown, and limits length.
+ * Sanitize input for generalization prompts.
+ * M-1 FIX: Builds on base sanitizeForPrompt from semantic-classifier.ts
+ * but adds generalization-specific processing (stricter length, markdown removal).
+ *
+ * Note: This is intentionally more aggressive than the base sanitizer.
  */
-export function sanitizeForPrompt(text: string): string {
-  return text
-    .slice(0, MAX_INPUT_LENGTH)
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/`/g, "'")
-    .replace(/\n/g, ' ')
+function sanitizeForGeneralization(text: string): string {
+  // Apply base sanitization first (XML escaping, 1000-char truncation)
+  const base = baseSanitize(text);
+  // Add generalization-specific processing
+  return base
+    .slice(0, MAX_INPUT_LENGTH) // Stricter length limit
+    .replace(/`/g, "'") // Remove markdown code markers
+    .replace(/\n/g, ' ') // Normalize newlines
     .trim();
 }
 
@@ -35,7 +41,7 @@ export function sanitizeForPrompt(text: string): string {
  * Build the generalization prompt for a signal.
  */
 export function buildPrompt(signalText: string, dimension?: string): string {
-  const sanitizedText = sanitizeForPrompt(signalText);
+  const sanitizedText = sanitizeForGeneralization(signalText);
   const dimensionContext = dimension ?? 'general';
 
   return `Transform this specific statement into an abstract principle.

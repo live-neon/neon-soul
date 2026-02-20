@@ -8,8 +8,12 @@
  */
 
 export { loadConfig, type NeonSoulConfig } from './lib/config.js';
-export { embed, embedBatch } from './lib/embeddings.js';
-export { cosineSimilarity, findBestMatch } from './lib/matcher.js';
+export {
+  cosineSimilarity,
+  findBestMatch,
+  DEFAULT_MATCH_THRESHOLD,
+  type MatchResult,
+} from './lib/matcher.js';
 export { parseMarkdown, type ParsedMarkdown } from './lib/markdown-reader.js';
 export {
   createSignalSource,
@@ -23,6 +27,13 @@ export {
   extractSignalsFromMemoryFiles,
   type ExtractionConfig,
 } from './lib/signal-extractor.js';
+// Stage 12: Signal source classification for identity validity
+export {
+  classifyElicitationType,
+  filterForIdentitySynthesis,
+  calculateWeightedSignalCount,
+  ELICITATION_WEIGHT,
+} from './lib/signal-source-classifier.js';
 export { loadState, saveState, shouldRunSynthesis } from './lib/state.js';
 export { backupFile, rollback, commitSoulUpdate } from './lib/backup.js';
 export {
@@ -61,6 +72,7 @@ export type {
   Signal,
   SignalSource,
   SignalType,
+  SignalElicitationType,
 } from './types/signal.js';
 
 export type {

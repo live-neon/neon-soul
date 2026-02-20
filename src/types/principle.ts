@@ -2,8 +2,14 @@
  * Principle types - intermediate stage between signals and axioms.
  */
 
-import type { SignalSource, GeneralizationProvenance } from './signal.js';
+import type {
+  SignalSource,
+  GeneralizationProvenance,
+  SignalStance,
+  SignalImportance,
+} from './signal.js';
 import type { SoulCraftDimension } from './dimensions.js';
+import type { ArtifactProvenance } from './provenance.js';
 
 export interface PrincipleProvenance {
   signals: Array<{
@@ -12,6 +18,20 @@ export interface PrincipleProvenance {
     source: SignalSource;
     /** Original signal text (preserved for voice) */
     original_text?: string;
+    /**
+     * C-2 FIX: Persist stance for anti-echo-chamber checks.
+     * Required for Stage 15 canPromote() to check questioning stance.
+     */
+    stance?: SignalStance;
+    /**
+     * C-2 FIX: Persist provenance for anti-echo-chamber checks.
+     * Required for Stage 15 canPromote() to check external provenance.
+     */
+    provenance?: ArtifactProvenance;
+    /**
+     * PBD Stage 7: Persist importance for centrality calculation.
+     */
+    importance?: SignalImportance;
   }>;
   merged_at: string; // ISO timestamp
   /** Generalization metadata for the principle text */
@@ -24,14 +44,57 @@ export interface PrincipleEvent {
   details: string;
 }
 
+/**
+ * PBD centrality levels based on signal importance distribution.
+ * I-1 FIX: Renamed to avoid overlap with SignalImportance (core/supporting).
+ *
+ * - defining: 50%+ signals are core importance (identity-defining principles)
+ * - significant: 20-50% signals are core importance (important but not defining)
+ * - contextual: <20% signals are core importance (context-dependent principles)
+ */
+export type PrincipleCentrality = 'defining' | 'significant' | 'contextual';
+
 export interface Principle {
   id: string;
   text: string;
   dimension: SoulCraftDimension;
   strength: number;
   n_count: number; // Reinforcement count (equals derived_from.signals.length)
-  embedding: number[]; // Centroid of merged signals
-  similarity_threshold: number; // Default 0.75 (see docs/issues/2026-02-10-generalized-signal-threshold-gap.md)
+
+  /**
+   * @deprecated v0.2.0: Embedding-based similarity replaced by LLM-based semantic comparison.
+   * Field retained as optional for backward compatibility with existing state.json files.
+   * New principles may not have this field; pipeline ignores it and computes similarity fresh.
+   * @see docs/plans/2026-02-12-llm-based-similarity.md
+   */
+  embedding?: number[];
+
+  /**
+   * @deprecated v0.2.0: Threshold now managed in matcher, not per-principle.
+   * Field retained as optional for backward compatibility with existing state.json files.
+   * @see docs/plans/2026-02-12-llm-based-similarity.md
+   */
+  similarity_threshold?: number;
+
+  /**
+   * SHA256 hash of normalized principle text for quick deduplication.
+   * Used to detect exact duplicates without LLM calls.
+   * Added in v0.2.0 as part of LLM-based similarity migration.
+   */
+  text_hash?: string;
+
   derived_from: PrincipleProvenance;
   history: PrincipleEvent[];
+
+  /**
+   * PBD Stage 7: Centrality derived from importance of contributing signals.
+   * A principle can be foundational (rare but core) even with low N-count.
+   */
+  centrality?: PrincipleCentrality;
+
+  /**
+   * PBD Stage 7: Estimated coverage - what % of total signals this represents.
+   * Set by pipeline after all signals processed (requires total count).
+   */
+  coveragePct?: number;
 }
