@@ -619,10 +619,18 @@ Several files exceed the 200-line MCE limit. This is acknowledged technical debt
 | `signal-extractor.ts` | 385 | Extract provenance classification to `provenance-classifier.ts` |
 | `reflection-loop.ts` | 273 | Consider extracting metrics calculation |
 
-**This file** (`ARCHITECTURE.md`) is also over budget at 600+ lines. Future split:
+**This file** (`docs/architecture/README.md`) is also over budget at 600+ lines. Future split:
 - Core overview + module reference (~200 lines)
 - `SYNTHESIS_FEATURES.md` - Detailed feature docs (~250 lines)
 - `INTEGRATION.md` - OpenClaw, config, safety (~150 lines)
 
 **Status**: Not blocking. Code is well-organized with clear function boundaries.
 **Tracking**: `docs/issues/2026-02-12-pbd-stages-13-17-twin-review-findings.md` (I-1)
+
+---
+
+## Related Documentation
+
+- **[Synthesis Philosophy](synthesis-philosophy.md)** - Design choices and limitations of the synthesis pipeline
+- **[Soul Bootstrap Proposal](../proposals/soul-bootstrap-pipeline-proposal.md)** - Authoritative design document
+- **[Issues Registry](../issues/)** - Active issues and tech debt tracking
