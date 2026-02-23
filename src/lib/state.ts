@@ -13,6 +13,13 @@ export interface MemoryFileState {
   processedAt: string;
 }
 
+export interface SessionFileState {
+  /** Number of lines processed in this session file */
+  lineCount: number;
+  /** When this session was last processed */
+  lastProcessedAt: string;
+}
+
 export interface SynthesisState {
   lastRun: {
     timestamp: string;
@@ -21,6 +28,8 @@ export interface SynthesisState {
     // IM-4 FIX: Track content size at last run for delta comparison
     contentSize: number;
   };
+  /** Track processed session files for incremental ingestion */
+  processedSessions: Record<string, SessionFileState>;
   metrics: {
     totalSignalsProcessed: number;
     totalPrinciplesGenerated: number;
@@ -35,6 +44,7 @@ const DEFAULT_STATE: SynthesisState = {
     soulVersion: '',
     contentSize: 0,
   },
+  processedSessions: {},
   metrics: {
     totalSignalsProcessed: 0,
     totalPrinciplesGenerated: 0,
@@ -69,6 +79,7 @@ export function loadState(workspacePath: string): SynthesisState {
         ...DEFAULT_STATE.lastRun,
         ...parsed.lastRun,
       },
+      processedSessions: parsed.processedSessions ?? {},
       metrics: {
         ...DEFAULT_STATE.metrics,
         ...parsed.metrics,

@@ -26,12 +26,14 @@ import { homedir } from 'node:os';
 // TrajectoryTracker removed - single-pass architecture doesn't need iteration tracking
 import { collectSources as collectSourcesFromWorkspace, type SourceCollection as CollectedSources } from './source-collector.js';
 import { extractSignalsFromContent } from './signal-extractor.js';
+import { sessionToMemoryContent } from './session-reader.js';
 import { runReflectiveLoop } from './reflection-loop.js';
 import { generateSoul as generateSoulContent } from './soul-generator.js';
 import { backupFile, commitSoulUpdate } from './backup.js';
 import { loadState, saveState, shouldRunSynthesis } from './state.js';
 import { saveSynthesisData, writeFileAtomic } from './persistence.js';
 import { logger } from './logger.js';
+import { LLMTelemetry, type TelemetrySummary } from './llm-telemetry.js';
 import type { Signal, SoulCraftDimension } from '../types/signal.js';
 import type { Principle } from '../types/principle.js';
 import type { Axiom } from '../types/axiom.js';
@@ -123,6 +125,10 @@ export interface PipelineContext {
     endTime?: Date;
     stageTimes: Record<string, number>;
   };
+  /** LLM telemetry (tracks every LLM request with timing) */
+  telemetry?: LLMTelemetry;
+  /** LLM telemetry summary (included in final result) */
+  telemetrySummary?: TelemetrySummary;
 }
 
 /**
@@ -137,6 +143,8 @@ export interface SourceCollection {
   userContextPath?: string;
   /** Interview response files */
   interviewFiles: string[];
+  /** Session log files */
+  sessionFiles: string[];
   /** Total source count */
   totalSources: number;
   /** Total content size (chars) */
@@ -180,6 +188,8 @@ export interface PipelineResult {
     synthesisDurationMs: number | undefined;
     effectiveThreshold: number | undefined;
   };
+  /** LLM telemetry summary (request counts, timing, per-stage breakdown) */
+  telemetry?: TelemetrySummary;
 }
 
 /**
@@ -204,12 +214,22 @@ export async function runPipeline(
     throw new LLMRequiredError('runPipeline');
   }
 
-  const mergedOptions = { ...DEFAULT_PIPELINE_OPTIONS, ...options };
+  // Wrap LLM with telemetry tracking
+  const telemetry = new LLMTelemetry(options.llm, {
+    verbose: process.env['NEON_SOUL_LLM_TELEMETRY'] === '1',
+  });
+
+  const mergedOptions = {
+    ...DEFAULT_PIPELINE_OPTIONS,
+    ...options,
+    llm: telemetry,  // Replace LLM with telemetry-wrapped version
+  };
 
   const context: PipelineContext = {
     options: mergedOptions as PipelineOptions,
     currentStage: 'init',
     skipped: false,
+    telemetry,
     timing: {
       startTime: new Date(),
       stageTimes: {},
@@ -227,6 +247,7 @@ export async function runPipeline(
       }
 
       context.currentStage = stage.name;
+      telemetry.setStage(stage.name);
       const stageStart = Date.now();
 
       context.options.onProgress?.(stage.name, 0, 'Starting...');
@@ -245,6 +266,10 @@ export async function runPipeline(
 
     context.timing.endTime = new Date();
 
+    // Capture telemetry summary
+    const telemetrySummary = telemetry.getSummary();
+    context.telemetrySummary = telemetrySummary;
+
     return {
       success: !context.error,
       skipped: context.skipped,
@@ -252,10 +277,15 @@ export async function runPipeline(
       error: context.error,
       context,
       metrics: extractMetrics(context),
+      telemetry: telemetrySummary,
     };
   } catch (error) {
     context.error = error instanceof Error ? error : new Error(String(error));
     context.timing.endTime = new Date();
+
+    // Capture telemetry even on failure
+    const telemetrySummary = telemetry.getSummary();
+    context.telemetrySummary = telemetrySummary;
 
     // IM-5 FIX: Removed dead rollback code - no stages implement rollback()
     // Recovery is handled by backup stage (restoring from .bak file if needed)
@@ -269,6 +299,7 @@ export async function runPipeline(
       error: context.error,
       context,
       metrics: extractMetrics(context),
+      telemetry: telemetrySummary,
     };
   }
 }
@@ -384,6 +415,7 @@ async function collectSources(
   const sources: SourceCollection = {
     memoryFiles: collected.memoryFiles.map(f => f.path),
     interviewFiles: [],
+    sessionFiles: collected.sessionFiles.map(f => f.path),
     totalSources: collected.stats.totalSources,
     totalContentSize: collected.stats.memoryContentSize,
   };
@@ -429,7 +461,8 @@ async function extractSignals(
   // IM-1 FIX: Check if ANY sources exist, not just memory files
   const hasAnySources = collected.memoryFiles.length > 0 ||
     collected.existingSoul ||
-    (collected.interviewSignals && collected.interviewSignals.length > 0);
+    (collected.interviewSignals && collected.interviewSignals.length > 0) ||
+    (collected.sessionFiles && collected.sessionFiles.length > 0);
 
   if (!hasAnySources) {
     context.signals = [];
@@ -464,8 +497,24 @@ async function extractSignals(
 
   // CR-4: Merge interview signals (already parsed Signal objects from JSON)
   if (collected.interviewSignals && collected.interviewSignals.length > 0) {
-    context.options.onProgress?.('extract-signals', 90, `Adding ${collected.interviewSignals.length} interview signals`);
+    context.options.onProgress?.('extract-signals', 80, `Adding ${collected.interviewSignals.length} interview signals`);
     allSignals.push(...collected.interviewSignals);
+  }
+
+  // Extract signals from session logs
+  if (collected.sessionFiles && collected.sessionFiles.length > 0) {
+    context.options.onProgress?.('extract-signals', 85, `Extracting from ${collected.sessionFiles.length} session files`);
+
+    for (const session of collected.sessionFiles) {
+      const content = sessionToMemoryContent(session);
+      const sessionSignals = await extractSignalsFromContent(llm, content, {
+        file: session.path,
+        category: 'session',
+      });
+      allSignals.push(...sessionSignals);
+    }
+
+    context.options.onProgress?.('extract-signals', 95, `Session extraction complete`);
   }
 
   context.signals = allSignals;
@@ -857,6 +906,51 @@ export function formatPipelineResult(result: PipelineResult): string {
     : 0;
   lines.push('');
   lines.push(`**Duration**: ${duration.toFixed(1)}s`);
+
+  // Stage timing breakdown
+  if (Object.keys(result.context.timing.stageTimes).length > 0) {
+    lines.push('');
+    lines.push('## Stage Timing');
+    lines.push('');
+    lines.push('| Stage | Duration |');
+    lines.push('|-------|----------|');
+    for (const [stage, ms] of Object.entries(result.context.timing.stageTimes)) {
+      lines.push(`| ${stage} | ${(ms / 1000).toFixed(1)}s |`);
+    }
+  }
+
+  // LLM Telemetry
+  if (result.telemetry && result.telemetry.totalRequests > 0) {
+    lines.push('');
+    lines.push('## LLM Telemetry');
+    lines.push('');
+    lines.push(`| Metric | Value |`);
+    lines.push(`|--------|-------|`);
+    lines.push(`| Model | ${result.telemetry.model} |`);
+    lines.push(`| Total requests | ${result.telemetry.totalRequests} |`);
+    lines.push(`| Classify | ${result.telemetry.classifyRequests} |`);
+    lines.push(`| Generate | ${result.telemetry.generateRequests} |`);
+    lines.push(`| Success | ${result.telemetry.successCount} |`);
+    lines.push(`| Failed | ${result.telemetry.failCount} |`);
+    lines.push(`| Timeout | ${result.telemetry.timeoutCount} |`);
+    lines.push(`| Total LLM time | ${(result.telemetry.totalLLMTimeMs / 1000).toFixed(1)}s |`);
+    lines.push(`| Avg/request | ${(result.telemetry.avgDurationMs / 1000).toFixed(1)}s |`);
+    lines.push(`| Max (slowest) | ${(result.telemetry.maxDurationMs / 1000).toFixed(1)}s |`);
+    lines.push(`| Min (fastest) | ${(result.telemetry.minDurationMs / 1000).toFixed(1)}s |`);
+
+    if (result.telemetry.stages.length > 0) {
+      lines.push('');
+      lines.push('### Per-Stage LLM Requests');
+      lines.push('');
+      lines.push('| Stage | Requests | OK | Fail | Timeout | Total Time | Avg Time |');
+      lines.push('|-------|----------|----|------|---------|------------|----------|');
+      for (const stage of result.telemetry.stages) {
+        lines.push(
+          `| ${stage.stage} | ${stage.requestCount} | ${stage.successCount} | ${stage.failCount} | ${stage.timeoutCount} | ${(stage.totalDurationMs / 1000).toFixed(1)}s | ${(stage.avgDurationMs / 1000).toFixed(1)}s |`
+        );
+      }
+    }
+  }
 
   return lines.join('\n');
 }

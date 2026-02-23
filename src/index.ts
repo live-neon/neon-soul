@@ -25,6 +25,7 @@ export {
 export {
   extractSignalsFromContent,
   extractSignalsFromMemoryFiles,
+  isStructuralNoise,
   type ExtractionConfig,
 } from './lib/signal-extractor.js';
 // Stage 12: Signal source classification for identity validity
@@ -108,6 +109,14 @@ export {
   type PipelineResult,
   type SourceCollection,
 } from './lib/pipeline.js';
+
+// LLM Telemetry
+export {
+  LLMTelemetry,
+  type LLMRequestRecord,
+  type StageStats,
+  type TelemetrySummary,
+} from './lib/llm-telemetry.js';
 
 export {
   runReflectiveLoop,

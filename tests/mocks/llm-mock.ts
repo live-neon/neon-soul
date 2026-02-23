@@ -322,13 +322,51 @@ export function createMockLLM(config: MockLLMConfig = {}): MockLLMProvider {
   }
 
   /**
-   * Mock generate() for signal generalization.
-   * Transforms specific statements into abstract principles.
+   * Mock generate() for signal generalization and batch detection.
+   * Handles:
+   * - Batch identity signal detection (returns line numbers)
+   * - Signal generalization (transforms to abstract principles)
    */
   async function generate(prompt: string): Promise<GenerationResult> {
     // Simulate async delay if configured
     if (delayMs > 0) {
       await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+
+    // Handle batch identity signal detection prompts
+    // These contain "<lines>" and ask for line numbers
+    if (prompt.includes('<lines>') && prompt.includes('identity signal')) {
+      const linesMatch = prompt.match(/<lines>\s*([\s\S]*?)\s*<\/lines>/);
+      if (linesMatch) {
+        const lines = linesMatch[1]?.split('\n') ?? [];
+        const signalNumbers: number[] = [];
+        for (const line of lines) {
+          const numMatch = line.match(/^(\d+)\.\s*(.*)/);
+          if (numMatch) {
+            const num = parseInt(numMatch[1] ?? '0', 10);
+            const text = (numMatch[2] ?? '').toLowerCase();
+            // Use same keyword logic as classify yes/no: default to 'yes'
+            // Identity keywords that suggest a real signal
+            const hasIdentityKeyword = /\b(believe|prefer|value|goal|aspire|honest|trust|important|matters|always|never|refuse|boundary|growth|learn|improve|relationship|connect|prefer|like|dislike)\b/.test(text);
+            // Default to "yes" for tests (matches old classify behavior),
+            // but filter out obvious non-signals if they have no identity keywords
+            if (hasIdentityKeyword || text.length > 20) {
+              signalNumbers.push(num);
+            }
+          }
+        }
+        // Record the call
+        if (recordCalls) {
+          calls.push({
+            prompt,
+            categories: ['generate'] as const,
+            context: 'batch-identity-detection',
+            result: { category: 'generate', confidence: 1.0 } as ClassificationResult<unknown>,
+            timestamp: new Date(),
+          });
+        }
+        return { text: signalNumbers.length > 0 ? signalNumbers.join(', ') : 'none' };
+      }
     }
 
     // Extract the signal text from the prompt (between <signal_text> tags)

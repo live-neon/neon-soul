@@ -222,6 +222,7 @@ export async function run(
   message?: string;
   data?: unknown;
   error?: string;
+  telemetry?: unknown;
 }> {
   // Validate LLM provider from skill context
   if (!context?.llm) {
@@ -243,6 +244,35 @@ export async function run(
   try {
     const result = await runPipeline(pipelineOptions);
 
+    // Build telemetry data for JSON output
+    const telemetryData = result.telemetry ? {
+      model: result.telemetry.model,
+      totalRequests: result.telemetry.totalRequests,
+      classifyRequests: result.telemetry.classifyRequests,
+      generateRequests: result.telemetry.generateRequests,
+      successCount: result.telemetry.successCount,
+      failCount: result.telemetry.failCount,
+      timeoutCount: result.telemetry.timeoutCount,
+      totalLLMTimeMs: result.telemetry.totalLLMTimeMs,
+      avgDurationMs: result.telemetry.avgDurationMs,
+      maxDurationMs: result.telemetry.maxDurationMs,
+      stages: result.telemetry.stages.map(s => ({
+        stage: s.stage,
+        requests: s.requestCount,
+        ok: s.successCount,
+        fail: s.failCount,
+        timeout: s.timeoutCount,
+        totalMs: s.totalDurationMs,
+        avgMs: s.avgDurationMs,
+        maxMs: s.maxDurationMs,
+      })),
+    } : undefined;
+
+    // Log the telemetry report to stderr (always visible, won't pollute JSON stdout)
+    if (result.context.telemetry) {
+      process.stderr.write(result.context.telemetry.formatReport());
+    }
+
     if (result.success && !result.skipped) {
       return {
         success: true,
@@ -253,16 +283,19 @@ export async function run(
           signalCount: result.metrics?.signalCount,
           compressionRatio: result.metrics?.compressionRatio,
         },
+        telemetry: telemetryData,
       };
     } else if (result.skipped) {
       return {
         success: true,
         message: `Skipped: ${result.skipReason}`,
+        telemetry: telemetryData,
       };
     } else {
       return {
         success: false,
         error: result.error?.message ?? 'Unknown error',
+        telemetry: telemetryData,
       };
     }
   } catch (error) {
@@ -273,7 +306,7 @@ export async function run(
   }
 }
 
-// Run if executed directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Run if executed directly (skip in bundle — NEON_SOUL_BUNDLED is set by build-skill.mjs)
+if (!process.env['NEON_SOUL_BUNDLED'] && import.meta.url === `file://${process.argv[1]}`) {
   main().catch(console.error);
 }

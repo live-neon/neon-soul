@@ -296,7 +296,7 @@ export async function run(args: string[]): Promise<{
   }
 }
 
-// Run if executed directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Run if executed directly (skip in bundle — NEON_SOUL_BUNDLED is set by build-skill.mjs)
+if (!process.env['NEON_SOUL_BUNDLED'] && import.meta.url === `file://${process.argv[1]}`) {
   main().catch(console.error);
 }

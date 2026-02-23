@@ -14,6 +14,7 @@ import { createSignalSource } from './provenance.js';
 import type { MemoryFile } from './memory-walker.js';
 import type { ArtifactProvenance } from '../types/provenance.js';
 import { isValidProvenance } from '../types/provenance.js';
+import { logger } from './logger.js';
 import {
   classifyDimension as semanticClassifyDimension,
   classifySignalType as semanticClassifySignalType,
@@ -54,40 +55,187 @@ function generateId(): string {
 // M-1 FIX: Using shared sanitizeForPrompt from semantic-classifier.ts (removed local duplicate)
 
 /**
- * Detect if a line is an identity signal using LLM.
- * Returns detection result with confidence score.
- * IM-7 FIX: Uses XML delimiters to prevent prompt injection.
+ * Conservative pre-filter to skip obvious non-identity content before LLM calls.
+ *
+ * Only filters lines that are structurally NOT natural language — code syntax,
+ * file paths, JSON, stack traces, diffs, log output, etc.
+ *
+ * Design principle: false negatives (filtering real signals) are MUCH worse
+ * than false positives (sending noise to LLM). Only filter when certain.
+ *
+ * Explicitly preserves:
+ * - All natural language sentences (including about technical topics)
+ * - Human-AI conversation content ("I prefer...", "I think...", etc.)
+ * - Reflections, preferences, values, even if they mention code or tools
+ *
+ * Disable with NEON_SOUL_SKIP_PREFILTER=1 if too aggressive.
  */
-async function isIdentitySignal(
+export function isStructuralNoise(text: string): boolean {
+  // --- Code declarations ---
+  // "import x from y", "export default", "export { foo }"
+  if (/^(import|export)\s+[{*\w]/.test(text)) return true;
+  // "const foo =", "let bar =", "var baz ="
+  if (/^(const|let|var)\s+\w+\s*[=:]/.test(text)) return true;
+  // "function foo(", "class Foo {", "interface Foo {"
+  if (/^(function|class|interface|type|enum)\s+\w+/.test(text)) return true;
+  // "return foo", "throw new Error" — but NOT "return to a state of peace"
+  if (/^(return|throw)\s+[\w.({[]/.test(text)) return true;
+
+  // --- Control flow syntax ---
+  if (/^(if|else if|for|while|switch)\s*\(/.test(text)) return true;
+  if (/^(try|catch|finally)\s*[{(]/.test(text)) return true;
+  if (/^(case\s+['"\w]|default:)/.test(text)) return true;
+
+  // --- Code fence markers ---
+  if (/^```/.test(text)) return true;
+
+  // --- Bare file paths (no surrounding sentence) ---
+  if (/^[.~\/\\][\w\-\/\\.@]+$/.test(text)) return true;
+  // Windows-style paths
+  if (/^[A-Z]:\\[\w\\]+/.test(text)) return true;
+
+  // --- Stack traces ---
+  if (/^\s*at\s+[\w.<>]+\s*\(/.test(text)) return true;
+
+  // --- JSON/object fragments: lone brackets/braces ---
+  if (/^[{}\[\](),;]+\s*$/.test(text)) return true;
+
+  // --- HTML/XML tags as the primary content ---
+  // "<div className=..." but NOT "I think <emphasis> is important"
+  if (/^<\/?[a-zA-Z][\w-]*[\s/>]/.test(text) && !/\b(I|my|we|our|you|your)\b/i.test(text)) return true;
+
+  // --- Bare URLs (no surrounding text) ---
+  if (/^https?:\/\/\S+$/.test(text)) return true;
+
+  // --- Git diff markers ---
+  if (/^[+-]{3}\s+[ab]\//.test(text)) return true;
+  if (/^@@\s+[-+]?\d/.test(text)) return true;
+
+  // --- Log lines with explicit levels ---
+  if (/^\[?(INFO|DEBUG|ERROR|WARN|TRACE|LOG)\]?[:\s]/i.test(text)) return true;
+
+  // --- Timestamps as primary content ---
+  if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}/.test(text)) return true;
+
+  // --- Shell command prompts ---
+  if (/^\$\s+\w/.test(text)) return true;
+
+  // --- Package manager commands ---
+  if (/^(npm|yarn|pnpm|pip|cargo|go|docker|kubectl)\s+(install|run|add|build|test|exec|pull|push)/.test(text)) return true;
+
+  // --- Pure numbers, version strings, commit hashes ---
+  if (/^[\d.]+$/.test(text)) return true;
+  if (/^v?\d+\.\d+\.\d+[\w.-]*$/.test(text)) return true;
+  if (/^[a-f0-9]{7,64}$/.test(text)) return true;
+
+  // --- Code-dense lines: high ratio of code characters ---
+  // Count code-specific chars: {}[]();=><|&!~ (but not quotes or hyphens, which appear in prose)
+  const codeChars = (text.match(/[{}[\]();=><|&!~^]/g) ?? []).length;
+  const alphaChars = (text.match(/[a-zA-Z]/g) ?? []).length;
+  // If more than 30% of visible chars are code-specific, skip
+  // "I believe in {equality}" has 1 code char in 28 = 3.5% → passes
+  // "const x = foo({ bar: [1, 2] });" has 10 code chars in 20 = 50% → filtered
+  if (alphaChars > 0 && codeChars / (alphaChars + codeChars) > 0.3) return true;
+
+  return false;
+}
+
+/**
+ * Batch size for identity detection prompts.
+ * How many candidate lines to include in a single LLM generate() call.
+ * Larger = fewer LLM calls, but risk of attention loss on long prompts.
+ * Configurable via NEON_SOUL_DETECTION_BATCH_SIZE env var.
+ * Default: 30 lines per batch.
+ */
+const RAW_DETECTION_BATCH = parseInt(process.env['NEON_SOUL_DETECTION_BATCH_SIZE'] ?? '30', 10);
+const DETECTION_BATCH_SIZE = Number.isNaN(RAW_DETECTION_BATCH) || RAW_DETECTION_BATCH < 1 ? 30 : RAW_DETECTION_BATCH;
+
+/**
+ * Batch identity signal detection using a single LLM generate() call.
+ *
+ * Instead of one classify() call per candidate line (~400 calls),
+ * sends 30-50 numbered lines in one prompt and asks the LLM to
+ * return which line numbers are identity signals (~8-10 calls total).
+ *
+ * ~40x reduction in LLM round-trips for typical workloads.
+ */
+async function detectIdentitySignalsBatch(
   llm: LLMProvider,
-  line: string
-): Promise<SignalDetectionResult> {
-  // IM-7 FIX: Sanitize and wrap user content in XML delimiters
-  const sanitizedLine = sanitizeForPrompt(line);
-  const prompt = `Is this line an identity signal? An identity signal is a statement that reveals:
+  candidates: Array<{ text: string; lineNum: number; originalLine: string }>
+): Promise<Map<number, SignalDetectionResult>> {
+  const results = new Map<number, SignalDetectionResult>();
+
+  if (candidates.length === 0) return results;
+
+  // Build numbered list for the prompt
+  const numberedLines = candidates
+    .map((c, i) => `${i + 1}. ${sanitizeForPrompt(c.text)}`)
+    .join('\n');
+
+  const prompt = `Below is a numbered list of text lines. Identify which lines are IDENTITY SIGNALS.
+
+An identity signal is a statement that reveals:
 - Core values, beliefs, or principles
 - Preferences or inclinations
 - Goals or aspirations
 - Boundaries or constraints
-- Relationship patterns
-- Behavioral patterns or habits
+- Relationship patterns or behavioral patterns
 
-<user_content>
-${sanitizedLine}
-</user_content>
+Lines that are NOT identity signals include: technical instructions, code discussions, task coordination, status updates, factual observations without personal stance.
 
-Answer yes or no based on the content in <user_content>, with a confidence from 0.0 to 1.0.`;
+<lines>
+${numberedLines}
+</lines>
 
-  const result = await llm.classify(prompt, {
-    categories: ['yes', 'no'] as const,
-    context: 'Identity signal detection',
-  });
+IMPORTANT: Respond with ONLY the line numbers that ARE identity signals, separated by commas. If none are identity signals, respond with "none". Do not explain.
 
-  // Stage 3: If category is null (parse failed), treat as not a signal
-  return {
-    isSignal: result.category === 'yes',
-    confidence: result.confidence,
-  };
+Example response: 1, 3, 7, 12`;
+
+  try {
+    const response = await llm.generate(prompt);
+    const text = response.text.trim().toLowerCase();
+
+    if (text === 'none' || text === 'n/a' || text === '') {
+      // No signals found in this batch — mark all as non-signals
+      for (let i = 0; i < candidates.length; i++) {
+        results.set(i, { isSignal: false, confidence: 0.9 });
+      }
+      return results;
+    }
+
+    // Parse comma-separated line numbers
+    const signalNumbers = new Set<number>();
+    const matches = text.match(/\d+/g);
+    if (matches) {
+      for (const m of matches) {
+        const num = parseInt(m, 10);
+        // Valid range: 1-based index within this batch
+        if (num >= 1 && num <= candidates.length) {
+          signalNumbers.add(num);
+        }
+      }
+    }
+
+    // Set results for all candidates in this batch
+    for (let i = 0; i < candidates.length; i++) {
+      const batchIndex = i + 1; // 1-based
+      results.set(i, {
+        isSignal: signalNumbers.has(batchIndex),
+        confidence: signalNumbers.has(batchIndex) ? 0.85 : 0.85,
+      });
+    }
+  } catch (error) {
+    // On error, skip the entire batch (conservative: don't false-positive)
+    logger.warn('[signal-extractor] Batch detection failed, skipping batch', {
+      batchSize: candidates.length,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    for (let i = 0; i < candidates.length; i++) {
+      results.set(i, { isSignal: false, confidence: 0 });
+    }
+  }
+
+  return results;
 }
 
 /** Default confidence threshold for signal detection */
@@ -286,21 +434,44 @@ export async function extractSignalsFromContent(
     candidates.push({ text, lineNum: i + 1, originalLine: line });
   }
 
-  // Phase 2: Detect identity signals in parallel batches
+  // Phase 1.5: Pre-filter structural noise before LLM calls
+  // Skips obvious code, paths, JSON, stack traces, diffs, etc.
+  // Disable with NEON_SOUL_SKIP_PREFILTER=1 if too aggressive
+  const skipPrefilter = process.env['NEON_SOUL_SKIP_PREFILTER'] === '1';
+  let filteredCandidates: typeof candidates;
+
+  if (skipPrefilter) {
+    filteredCandidates = candidates;
+  } else {
+    filteredCandidates = candidates.filter((c) => !isStructuralNoise(c.text));
+    const skipped = candidates.length - filteredCandidates.length;
+    if (skipped > 0) {
+      const filename = source.file.split('/').pop() ?? source.file;
+      process.stderr.write(
+        `[pre-filter] ${filename}: ${candidates.length} candidates → ${filteredCandidates.length} kept, ${skipped} noise skipped\n`
+      );
+    }
+  }
+
+  // Phase 2: Batch identity signal detection
+  // Instead of 1 LLM call per candidate (~400 calls), sends batches of 30
+  // lines in a single generate() call and asks which are signals (~10 calls).
   const detectionResults: Array<{
     candidate: (typeof candidates)[0];
     detection: { isSignal: boolean; confidence: number };
   }> = [];
 
-  for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
-    const batch = candidates.slice(i, i + BATCH_SIZE);
-    const batchResults = await Promise.all(
-      batch.map(async (candidate) => ({
-        candidate,
-        detection: await isIdentitySignal(llm, candidate.text),
-      }))
-    );
-    detectionResults.push(...batchResults);
+  for (let i = 0; i < filteredCandidates.length; i += DETECTION_BATCH_SIZE) {
+    const batch = filteredCandidates.slice(i, i + DETECTION_BATCH_SIZE);
+    const batchResults = await detectIdentitySignalsBatch(llm, batch);
+
+    for (let j = 0; j < batch.length; j++) {
+      const detection = batchResults.get(j) ?? { isSignal: false, confidence: 0 };
+      const candidate = batch[j];
+      if (candidate) {
+        detectionResults.push({ candidate, detection });
+      }
+    }
   }
 
   // Phase 3: Filter to confirmed signals
