@@ -14,6 +14,8 @@ import {
   parseSessionFile,
   sessionToMemoryContent,
   getSessionMessageCount,
+  isSystemMessage,
+  stripConversationMetadata,
 } from '../../src/lib/session-reader.js';
 
 // Create a temp directory for each test
@@ -491,5 +493,283 @@ describe('Session Reader', () => {
     it('returns 0 for empty sessions array', () => {
       expect(getSessionMessageCount([])).toBe(0);
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// System message filtering
+// ---------------------------------------------------------------------------
+
+describe('isSystemMessage', () => {
+  it('matches cron error messages', () => {
+    expect(isSystemMessage(
+      'System: [2026-02-23 04:13:37 PST] Cron (error): This operation was aborted'
+    )).toBe(true);
+  });
+
+  it('matches cron info messages', () => {
+    expect(isSystemMessage(
+      'System: [2026-02-23 17:37:00 PST] Cron (info): Maintenance completed successfully'
+    )).toBe(true);
+  });
+
+  it('matches cron maintenance task messages', () => {
+    expect(isSystemMessage(
+      '[cron:3ddea0b6-0c8a-45c1-8e13-51f21462c23c neon-soul-maintenance] Run the neon-agent maintenance task: cd /Users/neonsoul/Desktop/projects/neon-agent && npm run maintenance'
+    )).toBe(true);
+  });
+
+  it('matches session startup messages', () => {
+    expect(isSystemMessage(
+      'A new session was started via /new or /reset. Execute your Session Startup sequence now - read the required files before responding to the user.'
+    )).toBe(true);
+  });
+
+  it('does NOT match normal user text', () => {
+    expect(isSystemMessage('I prefer concise responses')).toBe(false);
+    expect(isSystemMessage('What do you value most?')).toBe(false);
+    expect(isSystemMessage('Tell me about your boundaries')).toBe(false);
+  });
+
+  it('does NOT match text containing system-like words in normal context', () => {
+    expect(isSystemMessage('The system should be robust')).toBe(false);
+    expect(isSystemMessage('I started a new project yesterday')).toBe(false);
+    expect(isSystemMessage('My cron jobs are important to me')).toBe(false);
+  });
+});
+
+describe('stripConversationMetadata', () => {
+  it('returns null for non-metadata text', () => {
+    expect(stripConversationMetadata('I prefer concise responses')).toBeNull();
+    expect(stripConversationMetadata('Hello there!')).toBeNull();
+  });
+
+  it('extracts user text after JSON block', () => {
+    const input = [
+      'Conversation info (untrusted metadata):',
+      '```json',
+      '{"message_id": "abc123", "sender_id": "user1"}',
+      '```',
+      'What do you think about honesty?',
+    ].join('\n');
+
+    expect(stripConversationMetadata(input)).toBe('What do you think about honesty?');
+  });
+
+  it('strips leading timestamp from extracted text', () => {
+    const input = [
+      'Conversation info (untrusted metadata):',
+      '```json',
+      '{"message_id": "abc123"}',
+      '```',
+      '[2026-02-23 04:13:37 PST] What do you think about honesty?',
+    ].join('\n');
+
+    expect(stripConversationMetadata(input)).toBe('What do you think about honesty?');
+  });
+
+  it('returns null when no text after JSON block', () => {
+    const input = [
+      'Conversation info (untrusted metadata):',
+      '```json',
+      '{"message_id": "abc123"}',
+      '```',
+    ].join('\n');
+
+    expect(stripConversationMetadata(input)).toBeNull();
+  });
+
+  it('returns null when only whitespace after JSON block', () => {
+    const input = [
+      'Conversation info (untrusted metadata):',
+      '```json',
+      '{"message_id": "abc123"}',
+      '```',
+      '   ',
+    ].join('\n');
+
+    expect(stripConversationMetadata(input)).toBeNull();
+  });
+
+  it('returns null when no ```json block present', () => {
+    expect(stripConversationMetadata(
+      'Conversation info (untrusted metadata): some text'
+    )).toBeNull();
+  });
+
+  it('returns null when closing ``` is missing', () => {
+    const input = [
+      'Conversation info (untrusted metadata):',
+      '```json',
+      '{"message_id": "abc123"}',
+    ].join('\n');
+
+    expect(stripConversationMetadata(input)).toBeNull();
+  });
+});
+
+describe('sessionToMemoryContent filtering', () => {
+  const makeSession = (messages: Array<{ role: 'user' | 'assistant'; text: string }>) => ({
+    id: 'test-session',
+    path: '/sessions/test.jsonl',
+    timestamp: '2026-02-22T08:00:00.000Z',
+    messages: messages.map((m, i) => ({ id: `msg${i}`, ...m })),
+    lineCount: messages.length + 1,
+  });
+
+  it('skips cron messages entirely', () => {
+    const content = sessionToMemoryContent(makeSession([
+      { role: 'user', text: 'System: [2026-02-23 04:13:37 PST] Cron (error): This operation was aborted' },
+      { role: 'user', text: 'I value honesty' },
+    ]));
+
+    expect(content).not.toContain('Cron');
+    expect(content).toContain('[Human]: I value honesty');
+    expect(content.split('\n')).toHaveLength(1);
+  });
+
+  it('skips assistant response following a system message', () => {
+    const content = sessionToMemoryContent(makeSession([
+      { role: 'user', text: 'System: [2026-02-23 04:13:37 PST] Cron (error): This operation was aborted' },
+      { role: 'assistant', text: 'Hey! Here is your cron report with all the details...' },
+      { role: 'user', text: 'I prefer clarity' },
+      { role: 'assistant', text: 'Noted! Clarity is important.' },
+    ]));
+
+    expect(content).not.toContain('cron report');
+    expect(content).not.toContain('Cron');
+    expect(content).toContain('[Human]: I prefer clarity');
+    expect(content).toContain('[Agent]: Noted! Clarity is important.');
+    expect(content.split('\n')).toHaveLength(2);
+  });
+
+  it('skips cron maintenance task messages and their responses', () => {
+    const content = sessionToMemoryContent(makeSession([
+      { role: 'user', text: '[cron:abc-123 neon-soul-maintenance] Run the neon-agent maintenance task: npm run maintenance' },
+      { role: 'assistant', text: 'Running maintenance now... 0 processed, 0 decayed.' },
+      { role: 'user', text: 'What are your core values?' },
+    ]));
+
+    expect(content).not.toContain('maintenance');
+    expect(content).toContain('[Human]: What are your core values?');
+    expect(content.split('\n')).toHaveLength(1);
+  });
+
+  it('skips session startup messages and their responses', () => {
+    const content = sessionToMemoryContent(makeSession([
+      { role: 'user', text: 'A new session was started via /new or /reset. Execute your Session Startup sequence now.' },
+      { role: 'assistant', text: 'Session initialized! Reading required files...' },
+      { role: 'user', text: 'Tell me about boundaries' },
+    ]));
+
+    expect(content).not.toContain('Session Startup');
+    expect(content).not.toContain('initialized');
+    expect(content).toContain('[Human]: Tell me about boundaries');
+    expect(content.split('\n')).toHaveLength(1);
+  });
+
+  it('extracts real text from metadata-wrapped messages', () => {
+    const metaWrapped = [
+      'Conversation info (untrusted metadata):',
+      '```json',
+      '{"message_id": "abc123", "sender_id": "user1"}',
+      '```',
+      'I believe in being direct and honest.',
+    ].join('\n');
+
+    const content = sessionToMemoryContent(makeSession([
+      { role: 'user', text: metaWrapped },
+      { role: 'assistant', text: 'That resonates with me.' },
+    ]));
+
+    expect(content).toContain('[Human]: I believe in being direct and honest.');
+    expect(content).toContain('[Agent]: That resonates with me.');
+    expect(content).not.toContain('untrusted metadata');
+    expect(content).not.toContain('message_id');
+    expect(content.split('\n')).toHaveLength(2);
+  });
+
+  it('skips metadata-wrapped messages with no extractable text', () => {
+    const metaOnly = [
+      'Conversation info (untrusted metadata):',
+      '```json',
+      '{"message_id": "abc123"}',
+      '```',
+    ].join('\n');
+
+    const content = sessionToMemoryContent(makeSession([
+      { role: 'user', text: metaOnly },
+      { role: 'assistant', text: 'I see a metadata message with no content.' },
+      { role: 'user', text: 'I value empathy' },
+    ]));
+
+    expect(content).not.toContain('metadata');
+    expect(content).toContain('[Human]: I value empathy');
+    expect(content.split('\n')).toHaveLength(1);
+  });
+
+  it('handles mixed session with all noise types and preserves clean messages', () => {
+    const metaWrapped = [
+      'Conversation info (untrusted metadata):',
+      '```json',
+      '{"message_id": "xyz"}',
+      '```',
+      'How do you handle conflict?',
+    ].join('\n');
+
+    const content = sessionToMemoryContent(makeSession([
+      { role: 'user', text: 'I believe in honesty' },
+      { role: 'assistant', text: 'Honesty is a core value.' },
+      { role: 'user', text: 'System: [2026-02-23 04:13:37 PST] Cron (error): timeout' },
+      { role: 'assistant', text: 'Hey! Your cron failed...' },
+      { role: 'user', text: metaWrapped },
+      { role: 'assistant', text: 'Great question about conflict.' },
+      { role: 'user', text: '[cron:abc-123 maint] Run the neon-agent maintenance task: npm run maint' },
+      { role: 'assistant', text: 'Running maintenance...' },
+      { role: 'user', text: 'A new session was started via /new or /reset. Execute startup.' },
+      { role: 'assistant', text: 'Starting up!' },
+      { role: 'user', text: 'I prefer directness' },
+      { role: 'assistant', text: 'Directness noted.' },
+    ]));
+
+    const lines = content.split('\n');
+    // Should have: honesty pair (2) + conflict pair (2) + directness pair (2) = 6
+    expect(lines).toHaveLength(6);
+    expect(content).toContain('[Human]: I believe in honesty');
+    expect(content).toContain('[Agent]: Honesty is a core value.');
+    expect(content).toContain('[Human]: How do you handle conflict?');
+    expect(content).toContain('[Agent]: Great question about conflict.');
+    expect(content).toContain('[Human]: I prefer directness');
+    expect(content).toContain('[Agent]: Directness noted.');
+    // None of the noise should appear
+    expect(content).not.toContain('Cron');
+    expect(content).not.toContain('cron');
+    expect(content).not.toContain('maintenance');
+    expect(content).not.toContain('metadata');
+    expect(content).not.toContain('Starting up');
+  });
+
+  it('preserves normal messages when no noise is present', () => {
+    const content = sessionToMemoryContent(makeSession([
+      { role: 'user', text: 'What matters to you?' },
+      { role: 'assistant', text: 'I value growth and learning.' },
+      { role: 'user', text: 'Tell me more about that.' },
+      { role: 'assistant', text: 'Growth means continuous improvement.' },
+    ]));
+
+    expect(content.split('\n')).toHaveLength(4);
+    expect(content).toContain('[Human]: What matters to you?');
+    expect(content).toContain('[Agent]: I value growth and learning.');
+  });
+
+  it('does not skip assistant after normal user message even if it mentions system words', () => {
+    const content = sessionToMemoryContent(makeSession([
+      { role: 'user', text: 'The system should be more transparent' },
+      { role: 'assistant', text: 'Transparency is important for trust.' },
+    ]));
+
+    expect(content.split('\n')).toHaveLength(2);
+    expect(content).toContain('[Human]: The system should be more transparent');
+    expect(content).toContain('[Agent]: Transparency is important for trust.');
   });
 });

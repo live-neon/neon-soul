@@ -206,12 +206,101 @@ export async function parseSessionFile(
  */
 const MAX_MESSAGE_CHARS = 500;
 
+// ---------------------------------------------------------------------------
+// System message filtering
+// ---------------------------------------------------------------------------
+// OpenClaw injects system/cron messages into sessions as role:"user" entries.
+// These contaminate identity signal extraction — the cron-relay persona bleeds
+// into Voice/Vibe sections. Filter them at the content-output stage so
+// parseSessionFile() stays stable for incremental state tracking.
+// ---------------------------------------------------------------------------
+
+/**
+ * Patterns that identify system-injected messages to skip entirely.
+ *
+ * 1. Cron error/info: "System: [2026-02-23 04:13:37 PST] Cron (error): ..."
+ * 2. Cron maintenance tasks: "[cron:UUID task-name] Run the neon-agent ..."
+ * 3. Session startup: "A new session was started via /new or /reset. ..."
+ */
+const SYSTEM_MESSAGE_PATTERNS: RegExp[] = [
+  /^System: \[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} [A-Z]{3,4}\] Cron \(/,
+  /^\[cron:[a-f0-9-]+ [\w-]+\]/,
+  /^A new session was started via \/new or \/reset\./,
+];
+
+/**
+ * Detect system-injected messages that should be skipped during signal extraction.
+ * These are OpenClaw platform messages injected as role:"user" — cron triggers,
+ * maintenance task instructions, and session startup sequences.
+ */
+export function isSystemMessage(text: string): boolean {
+  return SYSTEM_MESSAGE_PATTERNS.some((p) => p.test(text));
+}
+
+/**
+ * Prefix for conversation metadata wrapper messages.
+ */
+const CONVERSATION_META_PREFIX = 'Conversation info (untrusted metadata):';
+
+/**
+ * Strip OpenClaw conversation metadata wrapper, extracting the real user text.
+ *
+ * Format:
+ *   Conversation info (untrusted metadata):
+ *   ```json
+ *   { "message_id": "...", "sender_id": "...", ... }
+ *   ```
+ *   [optional timestamp] actual user message text
+ *
+ * Returns the extracted user text, or null if the message isn't a metadata
+ * wrapper or contains no extractable text.
+ */
+export function stripConversationMetadata(text: string): string | null {
+  if (!text.startsWith(CONVERSATION_META_PREFIX)) {
+    return null;
+  }
+
+  // Find the ```json...``` code block and skip past it
+  const jsonBlockStart = text.indexOf('```json');
+  if (jsonBlockStart === -1) {
+    return null;
+  }
+
+  // Find the closing ``` after the json block
+  const codeBlockEnd = text.indexOf('```', jsonBlockStart + 7);
+  if (codeBlockEnd === -1) {
+    return null;
+  }
+
+  const afterBlock = text.slice(codeBlockEnd + 3).trim();
+  if (afterBlock.length === 0) {
+    return null;
+  }
+
+  // Strip leading timestamp patterns:
+  //   "[2026-02-23 04:13:37 PST]" or "2026-02-23T04:13:37" or "[04:13:37 PST]"
+  const stripped = afterBlock.replace(
+    /^\[?\d{1,4}[-/:]\d{2}[-/:]\d{2}[T ]?\d{2}:\d{2}(:\d{2})?\s*[A-Z]{0,4}\]?\s*/,
+    ''
+  );
+
+  return stripped.length > 0 ? stripped : null;
+}
+
 /**
  * Convert a session file into content suitable for signal extraction.
  *
  * Each message becomes a single line prefixed with [Human] or [Agent].
  * Newlines within messages are collapsed to spaces. Long messages are
  * truncated to MAX_MESSAGE_CHARS.
+ *
+ * Filters out system-injected noise:
+ * - Cron error/info messages (skipped entirely)
+ * - Cron maintenance task instructions (skipped entirely)
+ * - Session startup sequences (skipped entirely)
+ * - Conversation metadata wrappers (prefix stripped, real user text kept)
+ * - Assistant responses to any skipped system message (skipped — cron-relay
+ *   persona contaminates Voice/Vibe if included)
  *
  * This produces one candidate per message (not per line), so the batch
  * detector evaluates whole messages at a time — dramatically fewer LLM calls.
@@ -225,10 +314,40 @@ export function sessionToMemoryContent(
     ? session.messages.slice(startFromMessage)
     : session.messages;
 
+  let skipNextAssistant = false;
+
   for (const msg of messages) {
+    // Skip assistant responses to system messages — the cron-relay persona
+    // ("Hey! here's your cron report...") is not identity expression
+    if (msg.role === 'assistant' && skipNextAssistant) {
+      skipNextAssistant = false;
+      continue;
+    }
+    skipNextAssistant = false;
+
+    // Filter user messages for system-injected noise
+    let messageText = msg.text;
+    if (msg.role === 'user') {
+      // Pattern 1/3/4: Skip system messages entirely
+      if (isSystemMessage(messageText)) {
+        skipNextAssistant = true;
+        continue;
+      }
+
+      // Pattern 2: Strip conversation metadata, keep real user text
+      const extracted = stripConversationMetadata(messageText);
+      if (extracted !== null) {
+        messageText = extracted;
+      } else if (messageText.startsWith(CONVERSATION_META_PREFIX)) {
+        // Metadata wrapper with no extractable text — skip
+        skipNextAssistant = true;
+        continue;
+      }
+    }
+
     const role = msg.role === 'user' ? 'Human' : 'Agent';
     // Collapse newlines to spaces, normalize whitespace
-    let text = msg.text.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
+    let text = messageText.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
     // Truncate long messages
     if (text.length > MAX_MESSAGE_CHARS) {
       text = text.slice(0, MAX_MESSAGE_CHARS);
