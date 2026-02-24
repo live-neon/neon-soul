@@ -226,6 +226,39 @@ New tests added (19 total):
 
 ---
 
+## Combined Speed Analysis (with Structured Classification Optimization)
+
+This change stacked on top of the [Structured Classification Optimization](2026-02-23-structured-classification-optimization.md) completed the day before. Together they produced a **3.2x speedup** for full `--reset` synthesis.
+
+### End-to-End Progression
+
+| Metric | Baseline (before both) | After classification opt | After noise filtering | Total change |
+|--------|----------------------|------------------------|-----------------------|-------------|
+| **Extract-signals requests** | 65 | 34 (-48%) | 17 (-74%) | **-74%** |
+| **Total LLM requests** | 137 | 106 (-23%) | 67 (-51%) | **-51%** |
+| **Total LLM time** | 1,862s (~31 min) | 1,155s (~19 min) | 579s (~10 min) | **-69%** |
+
+### Why They Compound
+
+The two optimizations hit different bottlenecks:
+
+1. **Structured classification** reduced LLM round-trips per signal from 5→1. Same number of signals, fewer calls each. This is a per-signal multiplier.
+
+2. **Session noise filtering** reduced the number of signals themselves from 19→8. More than half the input was cron/system junk that was wasting LLM time *and* polluting output quality.
+
+The extract-signals stage got the biggest hit (**-74%** requests) because both changes compound there — fewer signals × fewer calls per signal. The reflective-synthesis stage also shrank proportionally since it scales with signal count (43 requests now vs 65 before).
+
+### Per-Stage Comparison
+
+| Stage | Baseline | After both | Change |
+|-------|----------|-----------|--------|
+| extract-signals | 65 req / ~930s | 17 req / 138.6s | **-74% req / -85% time** |
+| reflective-synthesis | 65 req / ~800s | 43 req / 360.8s | **-34% req / -55% time** |
+| prose-expansion | 6 req / ~127s | 6 req / 73.7s | **— req / -42% time** |
+| generate-soul | 1 req / ~6s | 1 req / 5.9s | **— / —** |
+
+---
+
 ## Future Considerations
 
 1. **New noise patterns**: If OpenClaw adds new system message types, add a regex to `SYSTEM_MESSAGE_PATTERNS`. The pattern-matching approach is extensible.
