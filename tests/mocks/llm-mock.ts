@@ -333,6 +333,56 @@ export function createMockLLM(config: MockLLMConfig = {}): MockLLMProvider {
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
 
+    // Handle structured classification prompts (combined dimension/importance/stance)
+    // These contain "<signal>" and ask for JSON with all 3 fields
+    if (prompt.includes('<signal>') && prompt.includes('"dimension"') && prompt.includes('"importance"') && prompt.includes('"stance"')) {
+      // Extract signal text from <signal> tags
+      const signalMatch = prompt.match(/<signal>\s*([\s\S]*?)\s*<\/signal>/);
+      const signalText = signalMatch?.[1]?.toLowerCase() ?? '';
+
+      // Infer dimension from keywords
+      let dimension = 'identity-core'; // default
+      for (const [keyword, dim] of Object.entries(DEFAULT_DIMENSION_HINTS)) {
+        if (signalText.includes(keyword)) {
+          dimension = dim;
+          break;
+        }
+      }
+
+      // Infer importance from keywords
+      let importance = 'supporting'; // default
+      if (/\b(core|fundamental|above all|most important)\b/.test(signalText)) {
+        importance = 'core';
+      } else if (/\b(also|incidentally|by the way)\b/.test(signalText)) {
+        importance = 'peripheral';
+      }
+
+      // Infer stance from keywords
+      let stance = 'assert'; // default
+      if (/\b(never|don't|won't|refuse)\b/.test(signalText)) {
+        stance = 'deny';
+      } else if (/\b(maybe|perhaps|wonder|might)\b/.test(signalText)) {
+        stance = 'question';
+      } else if (/\b(sometimes|when|in certain|depends)\b/.test(signalText)) {
+        stance = 'qualify';
+      } else if (/\b(on one hand|but also|tension|conflict)\b/.test(signalText)) {
+        stance = 'tensioning';
+      }
+
+      // Record the call
+      if (recordCalls) {
+        calls.push({
+          prompt,
+          categories: ['generate'] as const,
+          context: 'structured-classification',
+          result: { category: 'generate', confidence: 1.0 } as ClassificationResult<unknown>,
+          timestamp: new Date(),
+        });
+      }
+
+      return { text: JSON.stringify({ dimension, importance, stance }) };
+    }
+
     // Handle batch identity signal detection prompts (echo-back approach)
     // These contain "<lines>" and ask for identity signals
     if (prompt.includes('<lines>') && prompt.includes('identity signal')) {

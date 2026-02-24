@@ -16,13 +16,9 @@ import type { ArtifactProvenance } from '../types/provenance.js';
 import { isValidProvenance } from '../types/provenance.js';
 import { logger } from './logger.js';
 import {
-  classifyDimension as semanticClassifyDimension,
-  classifySignalType as semanticClassifySignalType,
-  classifyStance as semanticClassifyStance,
-  classifyImportance as semanticClassifyImportance,
+  classifySignalStructured,
   sanitizeForPrompt, // M-1 FIX: Use canonical export
 } from './semantic-classifier.js';
-import { classifyElicitationType } from './signal-source-classifier.js';
 
 export interface ExtractionConfig {
   promptTemplate: string; // With {content}, {path}, {category} placeholders
@@ -317,7 +313,7 @@ Respond with only: self, curated, or external`;
 /**
  * Batch size for parallel LLM processing.
  * Configurable via NEON_SOUL_LLM_CONCURRENCY env var.
- * Default: 10 (limits concurrent LLM calls to ~30: 10 signals × 3 calls each)
+ * Default: 10 (limits concurrent LLM calls to ~10: 1 structured generate per signal)
  *
  * C-1 FIX: Validate lower bound to prevent infinite loops.
  * Invalid values (0, negative, NaN) fall back to default.
@@ -431,19 +427,16 @@ export async function extractSignalsFromContent(
           signalText.slice(0, 100)
         );
 
-        // Parallelize dimension, signalType, stance, importance, elicitationType
-        const [dimension, signalType, stance, importance, elicitationType] =
-          await Promise.all([
-            semanticClassifyDimension(llm, signalText),
-            semanticClassifySignalType(llm, signalText),
-            semanticClassifyStance(llm, signalText),
-            semanticClassifyImportance(llm, signalText),
-            classifyElicitationType(llm, signalText, signalSource.context),
-          ]);
+        // Single structured classification call (was 5 separate calls)
+        // Removed: signalType (metadata only, never read downstream)
+        // Removed: elicitationType (weighting infrastructure exists but unused in pipeline)
+        // Combined: dimension + importance + stance into 1 generate() call with failsafe
+        const { dimension, importance, stance } =
+          await classifySignalStructured(llm, signalText);
 
         return {
           id: generateId(),
-          type: signalType,
+          type: 'value' as const, // Default — signalType classification removed (unused downstream)
           text: signalText,
           confidence: 0.85,
           source: signalSource,
@@ -451,7 +444,7 @@ export async function extractSignalsFromContent(
           stance,
           importance,
           provenance: artifactProvenance,
-          elicitationType,
+          elicitationType: 'user-elicited' as const, // Default — elicitation classification removed (unused downstream)
         };
       })
     );
