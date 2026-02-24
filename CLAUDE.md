@@ -81,7 +81,7 @@ npm run test:watch                 # Watch mode
 - `src/lib/pipeline.ts:1-50` - Pipeline stages overview
 - `src/types/signal.ts` - Core data types
 - `skills/neon-soul/SKILL.md` - Skill manifest and commands
-- `docs/ARCHITECTURE.md` - System design reference
+- `docs/architecture/README.md` - System design reference
 
 ---
 

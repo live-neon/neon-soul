@@ -477,7 +477,7 @@ npm install && npm run build
 |----------|-------------|
 | [CLAUDE.md](CLAUDE.md) | AI assistant context for Claude Code development |
 | [Soul Bootstrap Proposal](docs/proposals/soul-bootstrap-pipeline-proposal.md) | Authoritative design: three-phase pipeline with hybrid C+D integration |
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System reference (created during Phase 0 implementation) |
+| [Architecture](docs/architecture/README.md) | System reference (created during Phase 0 implementation) |
 | [Reflective Manifold Trajectory Metrics](docs/research/reflective-manifold-trajectory-metrics.md) | Attractor basin convergence and trajectory analysis for soul quality |
 | [OpenClaw Soul Architecture](docs/research/openclaw-soul-architecture.md) | Complete analysis of OpenClaw's soul system (~35K tokens) |
 | [OpenClaw Self-Learning Agent](docs/research/openclaw-self-learning-agent.md) | Soul evolution mechanics: memory → synthesis → updated identity (RQ5) |

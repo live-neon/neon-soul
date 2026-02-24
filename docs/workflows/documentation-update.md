@@ -48,7 +48,8 @@ docs/plans/README.md                                 # Plan registry (index of a
         ↓
 docs/plans/*-master.md                               # Implementation overview
         ↓
-docs/ARCHITECTURE.md                                 # How system works
+docs/architecture/README.md                          # How system works
+docs/architecture/synthesis-philosophy.md            # Design choices
         ↓
 docs/plans/*.md                                      # Feature/phase-specific details
         ↓
@@ -64,7 +65,8 @@ docs/reviews/                                        # Code review outputs
 - **Proposal**: Historical record of design decisions ("what we decided to build and why")
 - **Plan Registry**: Index of all implementation plans with status
 - **Master Plan**: Implementation coordination ("how phases relate")
-- **ARCHITECTURE.md**: System reference ("how the code actually works")
+- **Architecture README**: System reference ("how the code actually works")
+- **Synthesis Philosophy**: Design choices and limitations
 - **Feature Plans**: Implementation details ("what to build")
 - **skills/neon-soul/SKILL.md**: Agent skill manifest (commands, frontmatter, invocation)
 - **docs/workflows/skill-publish.md**: Installation and publishing instructions
@@ -83,10 +85,10 @@ Classify the change:
 
 | Type | Files Affected |
 |------|----------------|
-| **Architecture** | Proposal, Master Plan, ARCHITECTURE.md, Phase Plans, README |
-| **Phase structure** | Master Plan, ARCHITECTURE.md, affected Phase Plans |
+| **Architecture** | Proposal, Master Plan, architecture/README.md, Phase Plans, README |
+| **Phase structure** | Master Plan, architecture/README.md, affected Phase Plans |
 | **Stage details** | Specific Phase Plan only |
-| **Module structure** | ARCHITECTURE.md, Phase 0, affected Phase Plans |
+| **Module structure** | architecture/README.md, Phase 0, affected Phase Plans |
 | **Dependency** | Proposal (tech stack), Phase 0, README |
 | **Issue resolution** | Issues file, affected Plans |
 | **Skill commands** | skills/neon-soul/SKILL.md, docs/workflows/skill-publish.md, README |
@@ -187,7 +189,8 @@ grep -r "Master Plan\|Depends on" docs/plans/
 | `docs/proposals/soul-bootstrap-pipeline-proposal.md` | Tech stack, deps, commands, interfaces |
 | `docs/plans/README.md` | Plan registry, status, cross-references |
 | `docs/plans/*-master.md` | Architecture, shared modules, phases |
-| `docs/ARCHITECTURE.md` | Module diagram, data flow, config options |
+| `docs/architecture/README.md` | Module diagram, data flow, config options |
+| `docs/architecture/synthesis-philosophy.md` | Design choices, limitations |
 | `docs/plans/*.md` | Feature plans: tasks, acceptance criteria |
 | `skills/neon-soul/SKILL.md` | Commands, frontmatter, invocation examples |
 | `docs/workflows/skill-publish.md` | Installation methods, ClawHub/npm publish steps |
@@ -334,7 +337,8 @@ grep -r "@anthropic-ai/sdk" docs/        # Should return nothing
 - **[Soul Bootstrap Proposal](../proposals/soul-bootstrap-pipeline-proposal.md)** - Authoritative design (decisions)
 - **[Plan Registry](../plans/README.md)** - Index of all implementation plans
 - **[Master Plan](../plans/2026-02-07-soul-bootstrap-master.md)** - Implementation overview
-- **[ARCHITECTURE.md](../ARCHITECTURE.md)** - System reference
+- **[Architecture](../architecture/README.md)** - System reference
+- **[Synthesis Philosophy](../architecture/synthesis-philosophy.md)** - Design choices
 - **[skills/neon-soul/SKILL.md](../../skills/neon-soul/SKILL.md)** - Agent skill manifest
 - **[Skill Publishing Workflow](skill-publish.md)** - Installation and publishing instructions
 - **[ClawHub Deployment Plan](../plans/2026-02-10-clawhub-deployment.md)** - Initial deployment plan
