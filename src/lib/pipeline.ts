@@ -26,12 +26,13 @@ import { homedir } from 'node:os';
 // TrajectoryTracker removed - single-pass architecture doesn't need iteration tracking
 import { collectSources as collectSourcesFromWorkspace, type SourceCollection as CollectedSources } from './source-collector.js';
 import { extractSignalsFromContent } from './signal-extractor.js';
-import { sessionToMemoryContent } from './session-reader.js';
+import { sessionToMemoryContent, type SessionFile } from './session-reader.js';
 import { runReflectiveLoop } from './reflection-loop.js';
 import { generateSoul as generateSoulContent } from './soul-generator.js';
 import { backupFile, commitSoulUpdate } from './backup.js';
-import { loadState, saveState, shouldRunSynthesis } from './state.js';
-import { saveSynthesisData, writeFileAtomic } from './persistence.js';
+import { loadState, saveState, clearState } from './state.js';
+import { saveSynthesisData, loadSignals, clearSynthesisData, writeFileAtomic } from './persistence.js';
+import type { MemoryFile } from './memory-walker.js';
 import { logger } from './logger.js';
 import { LLMTelemetry, type TelemetrySummary } from './llm-telemetry.js';
 import type { Signal, SoulCraftDimension } from '../types/signal.js';
@@ -66,6 +67,10 @@ export interface PipelineOptions {
   outputFormat?: 'prose' | 'notation';
   /** I-4 FIX: Strict mode fails pipeline on prose expansion errors instead of falling back */
   strictMode?: boolean;
+  /** Clear all synthesis data and re-extract from scratch */
+  reset?: boolean;
+  /** Include existing SOUL.md as input source (for bootstrapping from hand-crafted files) */
+  includeSoul?: boolean;
   /** Progress callback */
   onProgress?: (stage: string, progress: number, message: string) => void;
 }
@@ -117,6 +122,17 @@ export interface PipelineContext {
   backupPath?: string;
   /** Whether changes were committed */
   committed?: boolean;
+  /** Incremental processing tracking */
+  incremental?: {
+    addedMemoryFiles: MemoryFile[];
+    modifiedMemoryFiles: MemoryFile[];
+    removedMemoryPaths: string[];
+    newSessions: SessionFile[];
+    changedSessions: Array<{ session: SessionFile; previousMessageCount: number }>;
+    existingSignalCount: number;
+    newSignalCount: number;
+    isReset: boolean;
+  };
   /** Error if pipeline failed */
   error?: Error;
   /** Timing information */
@@ -399,17 +415,28 @@ function getWorkspacePath(memoryPath: string): string {
 /**
  * Stage: Collect input sources.
  * MN-2 FIX: Threshold check integrated here (was separate no-op stage)
+ * Supports incremental processing: tracks which files were already processed
+ * and only marks new/changed sources for extraction.
  */
 async function collectSources(
   context: PipelineContext
 ): Promise<PipelineContext> {
-  const { memoryPath, outputPath, contentThreshold = 2000, force } = context.options;
+  const { memoryPath, outputPath, force, reset, includeSoul } = context.options;
 
   // Extract workspace path from memory path (C-1 fix)
   const workspacePath = getWorkspacePath(memoryPath);
 
-  // Collect sources from workspace
-  const collected = await collectSourcesFromWorkspace(workspacePath);
+  // Handle --reset: clear all synthesis data before collecting
+  if (reset) {
+    logger.info('Reset mode: clearing all synthesis data');
+    clearSynthesisData(workspacePath);
+    clearState(workspacePath);
+  }
+
+  // Collect sources from workspace (skips SOUL.md unless --include-soul)
+  const collected = await collectSourcesFromWorkspace(workspacePath, {
+    includeSoul: includeSoul ?? false,
+  });
 
   // Build pipeline source collection
   const sources: SourceCollection = {
@@ -420,62 +447,163 @@ async function collectSources(
     totalContentSize: collected.stats.memoryContentSize,
   };
 
-  // Check for existing SOUL.md
+  // Check for existing SOUL.md path (for backup stage, not for extraction)
   if (existsSync(outputPath)) {
     sources.existingSoulPath = outputPath;
   }
 
-  // IM-4 FIX: Check content DELTA threshold (compare to last run)
+  // Load state for incremental tracking
   const state = loadState(workspacePath);
-  const lastRunContentSize = state.lastRun.contentSize || 0;
 
-  if (!force && !shouldRunSynthesis(sources.totalContentSize, contentThreshold, lastRunContentSize)) {
-    const delta = sources.totalContentSize - lastRunContentSize;
-    context.skipped = true;
-    context.skipReason = `Content delta below threshold (${delta} < ${contentThreshold} chars)`;
+  // Determine which sources are new/changed
+  const addedMemoryFiles: MemoryFile[] = [];
+  const modifiedMemoryFiles: MemoryFile[] = [];
+  const removedMemoryPaths: string[] = [];
+  const newSessions: SessionFile[] = [];
+  const changedSessions: Array<{ session: SessionFile; previousMessageCount: number }> = [];
+
+  if (reset) {
+    // Reset mode: everything is "new"
+    addedMemoryFiles.push(...collected.memoryFiles);
+    newSessions.push(...collected.sessionFiles);
+  } else {
+    // Incremental mode: diff against previous state
+    const previousMemoryFiles = state.lastRun.memoryFiles;
+    const currentMemoryPaths = new Set<string>();
+
+    for (const memFile of collected.memoryFiles) {
+      currentMemoryPaths.add(memFile.path);
+      const prev = previousMemoryFiles[memFile.path];
+
+      if (!prev) {
+        addedMemoryFiles.push(memFile);
+      } else if (prev.contentHash !== memFile.contentHash) {
+        modifiedMemoryFiles.push(memFile);
+      }
+      // else: unchanged, skip
+    }
+
+    // Find removed files
+    for (const prevPath of Object.keys(previousMemoryFiles)) {
+      if (!currentMemoryPaths.has(prevPath)) {
+        removedMemoryPaths.push(prevPath);
+      }
+    }
+
+    // Diff sessions
+    for (const session of collected.sessionFiles) {
+      const prev = state.processedSessions[session.id];
+
+      if (!prev) {
+        newSessions.push(session);
+      } else if (session.lineCount > prev.lineCount) {
+        changedSessions.push({
+          session,
+          previousMessageCount: prev.messageCount,
+        });
+      }
+      // else: unchanged, skip
+    }
   }
 
-  // Store collected sources for signal extraction
-  // MN-5 FIX: Use proper interface field instead of type assertion
+  const hasNewSources =
+    addedMemoryFiles.length > 0 ||
+    modifiedMemoryFiles.length > 0 ||
+    removedMemoryPaths.length > 0 ||
+    newSessions.length > 0 ||
+    changedSessions.length > 0;
+
+  // Skip logic: no new sources and not forced
+  if (!reset && !force && !hasNewSources) {
+    context.skipped = true;
+    context.skipReason = 'No new or changed sources to process';
+  }
+
+
+  // Log incremental summary
+  if (!reset) {
+    const parts: string[] = [];
+    if (addedMemoryFiles.length > 0) parts.push(`${addedMemoryFiles.length} new memory files`);
+    if (modifiedMemoryFiles.length > 0) parts.push(`${modifiedMemoryFiles.length} modified memory files`);
+    if (removedMemoryPaths.length > 0) parts.push(`${removedMemoryPaths.length} removed memory files`);
+    if (newSessions.length > 0) parts.push(`${newSessions.length} new sessions`);
+    if (changedSessions.length > 0) parts.push(`${changedSessions.length} sessions with new messages`);
+    if (parts.length > 0) {
+      logger.info(`Incremental sources: ${parts.join(', ')}`);
+    } else {
+      logger.info('No new sources detected');
+    }
+  }
+
+  // Store results on context
   context.collectedSources = collected;
   context.sources = sources;
+  context.incremental = {
+    addedMemoryFiles,
+    modifiedMemoryFiles,
+    removedMemoryPaths,
+    newSessions,
+    changedSessions,
+    existingSignalCount: 0,
+    newSignalCount: 0,
+    isReset: reset ?? false,
+  };
+
   return context;
 }
 
 /**
  * Stage: Extract signals from sources.
+ * Supports incremental extraction: loads existing signals, removes stale ones,
+ * extracts only from new/changed sources, and merges.
  */
 async function extractSignals(
   context: PipelineContext
 ): Promise<PipelineContext> {
-  // Get collected sources from previous stage
-  // MN-5 FIX: Use proper interface field instead of type assertion
   const collected = context.collectedSources;
+  const incremental = context.incremental;
 
-  // IM-1 FIX: Don't early return on empty memory - check all source types
-  if (!collected) {
+  if (!collected || !incremental) {
     context.signals = [];
     return context;
   }
 
-  // IM-1 FIX: Check if ANY sources exist, not just memory files
-  const hasAnySources = collected.memoryFiles.length > 0 ||
-    collected.existingSoul ||
-    (collected.interviewSignals && collected.interviewSignals.length > 0) ||
-    (collected.sessionFiles && collected.sessionFiles.length > 0);
-
-  if (!hasAnySources) {
-    context.signals = [];
-    return context;
-  }
-
-  // Get LLM provider from context
   const { llm } = context.options;
+  const workspacePath = getWorkspacePath(context.options.memoryPath);
 
-  // Extract signals from all memory files
-  const allSignals: Signal[] = [];
+  // Step 1: Load existing signals (empty for --reset since we cleared them)
+  let existingSignals: Signal[] = [];
+  if (!incremental.isReset) {
+    existingSignals = loadSignals(workspacePath);
+    incremental.existingSignalCount = existingSignals.length;
+  }
 
-  for (const memoryFile of collected.memoryFiles) {
+  // Step 2: Remove stale signals from modified/removed memory files
+  if (!incremental.isReset) {
+    const stalePaths = new Set([
+      ...incremental.modifiedMemoryFiles.map(f => f.path),
+      ...incremental.removedMemoryPaths,
+    ]);
+
+    if (stalePaths.size > 0) {
+      const beforeCount = existingSignals.length;
+      existingSignals = existingSignals.filter(s => !stalePaths.has(s.source.file));
+      const removedCount = beforeCount - existingSignals.length;
+      if (removedCount > 0) {
+        logger.info(`Removed ${removedCount} stale signals from modified/removed files`);
+      }
+    }
+  }
+
+  // Step 3: Extract from new/changed sources only
+  const newSignals: Signal[] = [];
+
+  // Memory files: only added + modified
+  const memoryFilesToProcess = incremental.isReset
+    ? collected.memoryFiles
+    : [...incremental.addedMemoryFiles, ...incremental.modifiedMemoryFiles];
+
+  for (const memoryFile of memoryFilesToProcess) {
     context.options.onProgress?.('extract-signals', 0, `Extracting from ${memoryFile.path}`);
 
     const signals = await extractSignalsFromContent(llm, memoryFile.content, {
@@ -483,40 +611,71 @@ async function extractSignals(
       category: memoryFile.category,
     });
 
-    allSignals.push(...signals);
+    newSignals.push(...signals);
   }
 
-  // Also extract from existing SOUL.md if present (high-signal input)
-  if (collected.existingSoul) {
+  // SOUL.md: only if --include-soul is set (opt-in to avoid feedback loop)
+  if (context.options.includeSoul && collected.existingSoul) {
+    context.options.onProgress?.('extract-signals', 50, 'Extracting from SOUL.md (--include-soul)');
     const soulSignals = await extractSignalsFromContent(llm, collected.existingSoul.rawContent, {
       file: collected.existingSoul.path,
       category: 'soul',
     });
-    allSignals.push(...soulSignals);
+    newSignals.push(...soulSignals);
   }
 
-  // CR-4: Merge interview signals (already parsed Signal objects from JSON)
+  // Interview signals: always merged (already parsed, no LLM cost)
   if (collected.interviewSignals && collected.interviewSignals.length > 0) {
-    context.options.onProgress?.('extract-signals', 80, `Adding ${collected.interviewSignals.length} interview signals`);
-    allSignals.push(...collected.interviewSignals);
+    context.options.onProgress?.('extract-signals', 70, `Adding ${collected.interviewSignals.length} interview signals`);
+    newSignals.push(...collected.interviewSignals);
   }
 
-  // Extract signals from session logs
-  if (collected.sessionFiles && collected.sessionFiles.length > 0) {
-    context.options.onProgress?.('extract-signals', 85, `Extracting from ${collected.sessionFiles.length} session files`);
+  // Sessions: only new + changed
+  const sessionsToProcess = incremental.isReset
+    ? collected.sessionFiles
+    : incremental.newSessions;
 
-    for (const session of collected.sessionFiles) {
+  if (sessionsToProcess.length > 0) {
+    context.options.onProgress?.('extract-signals', 80, `Extracting from ${sessionsToProcess.length} new session files`);
+
+    for (const session of sessionsToProcess) {
       const content = sessionToMemoryContent(session);
       const sessionSignals = await extractSignalsFromContent(llm, content, {
         file: session.path,
         category: 'session',
       });
-      allSignals.push(...sessionSignals);
+      newSignals.push(...sessionSignals);
     }
-
-    context.options.onProgress?.('extract-signals', 95, `Session extraction complete`);
   }
 
+  // Sessions with new messages: extract only from new messages
+  if (incremental.changedSessions.length > 0) {
+    context.options.onProgress?.('extract-signals', 90, `Extracting new messages from ${incremental.changedSessions.length} sessions`);
+
+    for (const { session, previousMessageCount } of incremental.changedSessions) {
+      const content = sessionToMemoryContent(session, previousMessageCount);
+      if (content.trim().length > 0) {
+        const sessionSignals = await extractSignalsFromContent(llm, content, {
+          file: session.path,
+          category: 'session',
+        });
+        newSignals.push(...sessionSignals);
+      }
+    }
+  }
+
+  // Step 4: Merge
+  incremental.newSignalCount = newSignals.length;
+  const allSignals = [...existingSignals, ...newSignals];
+
+  if (!incremental.isReset && incremental.existingSignalCount > 0) {
+    logger.info(
+      `Signal merge: ${incremental.existingSignalCount} existing → ` +
+      `${existingSignals.length} after stale removal + ${newSignals.length} new = ${allSignals.length} total`
+    );
+  }
+
+  context.options.onProgress?.('extract-signals', 100, `${allSignals.length} signals (${newSignals.length} new)`);
   context.signals = allSignals;
   return context;
 }
@@ -603,17 +762,39 @@ async function validateOutput(
       context.axioms ?? []
     );
 
-    // Update state with run metrics
+    // Update state with run metrics and incremental tracking
     const state = loadState(workspacePath);
     state.lastRun.timestamp = new Date().toISOString();
-    // IM-4 FIX: Track content size for delta comparison on next run
     state.lastRun.contentSize = context.sources?.totalContentSize ?? 0;
     state.metrics.totalSignalsProcessed += context.signals?.length ?? 0;
     state.metrics.totalPrinciplesGenerated = context.principles?.length ?? 0;
     state.metrics.totalAxiomsGenerated = context.axioms?.length ?? 0;
-    saveState(workspacePath, state);
 
-    context.options.onProgress?.('validate-output', 100, 'Persisted synthesis data');
+    // Track processed memory files (content hashes for incremental detection)
+    const collected = context.collectedSources;
+    if (collected) {
+      // Build complete memory file map from all current files
+      const memoryFileMap: Record<string, { contentHash: string; processedAt: string }> = {};
+      for (const memFile of collected.memoryFiles) {
+        memoryFileMap[memFile.path] = {
+          contentHash: memFile.contentHash,
+          processedAt: new Date().toISOString(),
+        };
+      }
+      state.lastRun.memoryFiles = memoryFileMap;
+
+      // Track processed sessions
+      for (const session of collected.sessionFiles) {
+        state.processedSessions[session.id] = {
+          lineCount: session.lineCount,
+          messageCount: session.messages.length,
+          lastProcessedAt: new Date().toISOString(),
+        };
+      }
+    }
+
+    saveState(workspacePath, state);
+    context.options.onProgress?.('validate-output', 100, 'Persisted synthesis data and incremental state');
   }
 
   return context;
@@ -873,6 +1054,17 @@ export function formatPipelineResult(result: PipelineResult): string {
   }
 
   lines.push(`**Status**: Success`);
+
+  // Incremental processing info
+  if (result.context.incremental) {
+    const inc = result.context.incremental;
+    if (inc.isReset) {
+      lines.push(`**Mode**: Reset (full re-extraction)`);
+    } else if (inc.existingSignalCount > 0) {
+      lines.push(`**Mode**: Incremental (${inc.existingSignalCount} existing + ${inc.newSignalCount} new signals)`);
+    }
+  }
+
   lines.push('');
   lines.push('## Metrics');
   lines.push('');

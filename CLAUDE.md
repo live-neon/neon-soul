@@ -25,7 +25,10 @@ src/
 ├── skill-entry.ts        # OpenClaw skill loader
 ├── commands/             # Skill commands (synthesize, status, audit, trace, rollback)
 ├── lib/                  # Core library
-│   ├── pipeline.ts       # Main orchestration (7-stage pipeline)
+│   ├── pipeline.ts       # Main orchestration (8-stage pipeline, incremental by default)
+│   ├── state.ts          # Incremental state tracking (memory hashes, session counts)
+│   ├── persistence.ts    # Signal/principle/axiom persistence + clearSynthesisData()
+│   ├── session-reader.ts # OpenClaw session log parsing (incremental via startFromMessage)
 │   ├── llm-similarity.ts # LLM-based semantic similarity
 │   ├── principle-store.ts # N-count convergence
 │   └── soul-generator.ts # SOUL.md generation
@@ -50,6 +53,22 @@ tests/
 - **Principle**: Validated pattern (N≥2 occurrences)
 - **Axiom**: Core identity element (N≥3, promoted from principles)
 - **Provenance**: Full audit trail from axiom → principle → signal → source line
+- **Incremental synthesis**: Only extracts signals from new/changed sources; merges with existing signals
+- **State tracking**: `state.json` tracks memory file content hashes and session message counts
+
+---
+
+## Synthesis Modes
+
+| Mode | Flag | Behavior |
+|------|------|----------|
+| **Incremental** | *(default)* | Only process new/changed memory files and sessions. Merge new signals with existing. Skip if nothing changed. |
+| **Force** | `--force` | Run even if no new sources detected (still incremental extraction). |
+| **Reset** | `--reset` | Clear all synthesis data, re-extract from scratch. Use when you want a clean slate. |
+| **Include SOUL** | `--include-soul` | Include existing SOUL.md as input source (off by default to prevent feedback loop). For bootstrapping from hand-crafted files. |
+| **Dry run** | `--dry-run` | Preview changes without writing. |
+
+**SOUL.md is never re-ingested by default.** It's a derivative of the pipeline's own output — re-ingesting it creates a feedback loop that inflates LLM request counts. Use `--include-soul` explicitly when bootstrapping from a hand-crafted SOUL.md.
 
 ---
 
@@ -69,16 +88,48 @@ npm run test:watch                 # Watch mode
 
 ### Running synthesis locally
 ```bash
-# Requires OpenClaw workspace with memory files
-/neon-soul synthesize --dry-run    # Preview
-/neon-soul synthesize --force      # Execute
+# Requires Ollama running with a model loaded
+# Run from neon-soul project root:
+
+# Incremental run (default - only processes new/changed sources):
+cd /Users/neonsoul/Desktop/projects/neon-soul && \
+  OLLAMA_MODEL=gpt-oss:120b \
+  NEON_SOUL_LLM_TELEMETRY=1 \
+  npx tsx src/cli.ts synthesize \
+  --memory-path ~/.openclaw/workspace/memory \
+  --output-path ~/.openclaw/workspace/SOUL.md
+
+# Reset run (clear everything, re-extract from scratch):
+cd /Users/neonsoul/Desktop/projects/neon-soul && \
+  OLLAMA_MODEL=gpt-oss:120b \
+  NEON_SOUL_LLM_TELEMETRY=1 \
+  npx tsx src/cli.ts synthesize --reset \
+  --memory-path ~/.openclaw/workspace/memory \
+  --output-path ~/.openclaw/workspace/SOUL.md
+
+# Force run (run even if no new sources, still incremental):
+cd /Users/neonsoul/Desktop/projects/neon-soul && \
+  OLLAMA_MODEL=gpt-oss:120b \
+  npx tsx src/cli.ts synthesize --force \
+  --memory-path ~/.openclaw/workspace/memory \
+  --output-path ~/.openclaw/workspace/SOUL.md
+
+# Dry run (preview without writing):
+cd /Users/neonsoul/Desktop/projects/neon-soul && \
+  OLLAMA_MODEL=gpt-oss:120b \
+  npx tsx src/cli.ts synthesize --dry-run \
+  --memory-path ~/.openclaw/workspace/memory \
+  --output-path ~/.openclaw/workspace/SOUL.md
 ```
 
 ---
 
 ## Important Files
 
-- `src/lib/pipeline.ts:1-50` - Pipeline stages overview
+- `src/lib/pipeline.ts` - Pipeline orchestration (incremental extraction, state tracking)
+- `src/lib/state.ts` - Incremental state (memory hashes, session message counts, clearState)
+- `src/lib/persistence.ts` - Signal/principle/axiom persistence + clearSynthesisData()
+- `src/lib/session-reader.ts` - Session log parsing with incremental startFromMessage
 - `src/types/signal.ts` - Core data types
 - `skills/neon-soul/SKILL.md` - Skill manifest and commands
 - `docs/architecture/README.md` - System design reference
@@ -100,3 +151,6 @@ npm run test:watch                 # Watch mode
 - Symlink detection and rejection
 - Auto-backup before SOUL.md overwrites
 - LLM context required (throws `LLMRequiredError` if missing)
+- SOUL.md excluded from input by default (prevents feedback loop)
+- Atomic file writes (temp + rename) for state and synthesis data
+- `--reset` clears data before re-extraction (no stale signal contamination)

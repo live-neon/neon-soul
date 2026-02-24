@@ -29,13 +29,7 @@ export interface ExtractionConfig {
   sourceType: 'template' | 'memory' | 'interview';
 }
 
-/**
- * Result from signal detection LLM call.
- */
-interface SignalDetectionResult {
-  isSignal: boolean;
-  confidence: number;
-}
+// SignalDetectionResult removed — echo-back detection returns signal texts directly
 
 // Stage 4: Removed dead code - extractSignals(), callLLMForSignals(), ExtractedSignal interface
 // Use extractSignalsFromContent() instead
@@ -151,95 +145,56 @@ const RAW_DETECTION_BATCH = parseInt(process.env['NEON_SOUL_DETECTION_BATCH_SIZE
 const DETECTION_BATCH_SIZE = Number.isNaN(RAW_DETECTION_BATCH) || RAW_DETECTION_BATCH < 1 ? 30 : RAW_DETECTION_BATCH;
 
 /**
- * Batch identity signal detection using a single LLM generate() call.
+ * Batch identity signal detection using echo-back approach.
  *
- * Instead of one classify() call per candidate line (~400 calls),
- * sends 30-50 numbered lines in one prompt and asks the LLM to
- * return which line numbers are identity signals (~8-10 calls total).
+ * Sends candidate texts to the LLM and asks it to return only the
+ * lines that are identity signals, one per line. The returned text
+ * IS the signal — no matching back to originals needed.
  *
  * ~40x reduction in LLM round-trips for typical workloads.
+ *
+ * @returns Array of signal texts as returned by the LLM
  */
 async function detectIdentitySignalsBatch(
   llm: LLMProvider,
   candidates: Array<{ text: string; lineNum: number; originalLine: string }>
-): Promise<Map<number, SignalDetectionResult>> {
-  const results = new Map<number, SignalDetectionResult>();
+): Promise<string[]> {
+  if (candidates.length === 0) return [];
 
-  if (candidates.length === 0) return results;
-
-  // Build numbered list for the prompt
-  const numberedLines = candidates
-    .map((c, i) => `${i + 1}. ${sanitizeForPrompt(c.text)}`)
+  // Build plain list of candidate texts (no numbers — avoids hallucination)
+  const candidateLines = candidates
+    .map((c) => sanitizeForPrompt(c.text))
     .join('\n');
 
-  const prompt = `Below is a numbered list of text lines. Identify which lines are IDENTITY SIGNALS.
+  const prompt = `Below is a list of text lines from conversations and notes. Return ONLY the lines that are identity signals — statements that reveal core values, beliefs, preferences, goals, boundaries, or behavioral patterns.
 
-An identity signal is a statement that reveals:
-- Core values, beliefs, or principles
-- Preferences or inclinations
-- Goals or aspirations
-- Boundaries or constraints
-- Relationship patterns or behavioral patterns
-
-Lines that are NOT identity signals include: technical instructions, code discussions, task coordination, status updates, factual observations without personal stance.
+Lines that are NOT identity signals: technical instructions, code discussions, task coordination, status updates, factual observations without personal stance.
 
 <lines>
-${numberedLines}
+${candidateLines}
 </lines>
 
-IMPORTANT: Respond with ONLY the line numbers that ARE identity signals, separated by commas. If none are identity signals, respond with "none". Do not explain.
-
-Example response: 1, 3, 7, 12`;
+Return each identity signal on its own line, exactly as it appears above. If none are identity signals, respond with "none". Do not add numbers, bullets, or explanations.`;
 
   try {
     const response = await llm.generate(prompt);
-    const text = response.text.trim().toLowerCase();
+    const text = response.text.trim();
 
-    if (text === 'none' || text === 'n/a' || text === '') {
-      // No signals found in this batch — mark all as non-signals
-      for (let i = 0; i < candidates.length; i++) {
-        results.set(i, { isSignal: false, confidence: 0.9 });
-      }
-      return results;
+    if (text.toLowerCase() === 'none' || text === '') {
+      return [];
     }
 
-    // Parse comma-separated line numbers
-    const signalNumbers = new Set<number>();
-    const matches = text.match(/\d+/g);
-    if (matches) {
-      for (const m of matches) {
-        const num = parseInt(m, 10);
-        // Valid range: 1-based index within this batch
-        if (num >= 1 && num <= candidates.length) {
-          signalNumbers.add(num);
-        }
-      }
-    }
-
-    // Set results for all candidates in this batch
-    for (let i = 0; i < candidates.length; i++) {
-      const batchIndex = i + 1; // 1-based
-      results.set(i, {
-        isSignal: signalNumbers.has(batchIndex),
-        confidence: signalNumbers.has(batchIndex) ? 0.85 : 0.85,
-      });
-    }
+    // Split response into individual signal lines
+    return text.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
   } catch (error) {
-    // On error, skip the entire batch (conservative: don't false-positive)
+    // On error, return empty (conservative: don't false-positive)
     logger.warn('[signal-extractor] Batch detection failed, skipping batch', {
       batchSize: candidates.length,
       error: error instanceof Error ? error.message : String(error),
     });
-    for (let i = 0; i < candidates.length; i++) {
-      results.set(i, { isSignal: false, confidence: 0 });
-    }
+    return [];
   }
-
-  return results;
 }
-
-/** Default confidence threshold for signal detection */
-const DEFAULT_CONFIDENCE_THRESHOLD = 0.5;
 
 /**
  * Classify artifact provenance based on source metadata and content analysis.
@@ -390,12 +345,9 @@ export async function extractSignalsFromContent(
   llm: LLMProvider | null | undefined,
   content: string,
   source: { file: string; category?: string; metadata?: { provenance?: string } },
-  options: { confidenceThreshold?: number } = {}
+  _options: { confidenceThreshold?: number } = {}
 ): Promise<Signal[]> {
   requireLLM(llm, 'extractSignalsFromContent');
-
-  const confidenceThreshold =
-    options.confidenceThreshold ?? DEFAULT_CONFIDENCE_THRESHOLD;
 
   // Phase 0: Classify artifact provenance (once per file, not per signal)
   // PBD Stage 14: SSEM-style provenance for anti-echo-chamber
@@ -453,71 +405,53 @@ export async function extractSignalsFromContent(
     }
   }
 
-  // Phase 2: Batch identity signal detection
-  // Instead of 1 LLM call per candidate (~400 calls), sends batches of 30
-  // lines in a single generate() call and asks which are signals (~10 calls).
-  const detectionResults: Array<{
-    candidate: (typeof candidates)[0];
-    detection: { isSignal: boolean; confidence: number };
-  }> = [];
+  // Phase 2: Batch identity signal detection (echo-back approach)
+  // Sends batches of ~30 candidates, LLM returns only the identity signals.
+  // Returned text IS the signal — no matching back to originals.
+  const detectedSignalTexts: string[] = [];
 
   for (let i = 0; i < filteredCandidates.length; i += DETECTION_BATCH_SIZE) {
     const batch = filteredCandidates.slice(i, i + DETECTION_BATCH_SIZE);
-    const batchResults = await detectIdentitySignalsBatch(llm, batch);
-
-    for (let j = 0; j < batch.length; j++) {
-      const detection = batchResults.get(j) ?? { isSignal: false, confidence: 0 };
-      const candidate = batch[j];
-      if (candidate) {
-        detectionResults.push({ candidate, detection });
-      }
-    }
+    const batchSignals = await detectIdentitySignalsBatch(llm, batch);
+    detectedSignalTexts.push(...batchSignals);
   }
 
-  // Phase 3: Filter to confirmed signals
-  const confirmedSignals = detectionResults.filter(
-    (r) => r.detection.isSignal && r.detection.confidence >= confidenceThreshold
-  );
-
-  // Phase 4: Classify and embed confirmed signals in BATCHES
+  // Phase 3: Classify detected signals in BATCHES
   // Fix: Unbounded parallelism was causing Ollama to timeout under load
   // See docs/issues/2026-02-10-llm-classification-failures.md
   const signals: Signal[] = [];
 
-  for (let i = 0; i < confirmedSignals.length; i += BATCH_SIZE) {
-    const batch = confirmedSignals.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < detectedSignalTexts.length; i += BATCH_SIZE) {
+    const batch = detectedSignalTexts.slice(i, i + BATCH_SIZE);
     const batchResults = await Promise.all(
-      batch.map(async ({ candidate, detection }) => {
-        // Create signal source (needed for provenance and elicitation context)
+      batch.map(async (signalText) => {
         const signalSource = createSignalSource(
           source.file,
-          candidate.lineNum,
-          candidate.originalLine.slice(0, 100)
+          0, // No line number — echo-back doesn't track source lines
+          signalText.slice(0, 100)
         );
 
         // Parallelize dimension, signalType, stance, importance, elicitationType
-        // PBD alignment: Added stance and importance (Stage 2 & 3), elicitationType (Stage 12)
-        // I-1 FIX: classifyElicitationType now accepts signalText directly (no tempSignal needed)
         const [dimension, signalType, stance, importance, elicitationType] =
           await Promise.all([
-            semanticClassifyDimension(llm, candidate.text),
-            semanticClassifySignalType(llm, candidate.text),
-            semanticClassifyStance(llm, candidate.text),
-            semanticClassifyImportance(llm, candidate.text),
-            classifyElicitationType(llm, candidate.text, signalSource.context),
+            semanticClassifyDimension(llm, signalText),
+            semanticClassifySignalType(llm, signalText),
+            semanticClassifyStance(llm, signalText),
+            semanticClassifyImportance(llm, signalText),
+            classifyElicitationType(llm, signalText, signalSource.context),
           ]);
 
         return {
           id: generateId(),
           type: signalType,
-          text: candidate.text,
-          confidence: detection.confidence,
+          text: signalText,
+          confidence: 0.85,
           source: signalSource,
           dimension,
-          stance, // PBD Stage 2
-          importance, // PBD Stage 3
-          provenance: artifactProvenance, // PBD Stage 14
-          elicitationType, // PBD Stage 12
+          stance,
+          importance,
+          provenance: artifactProvenance,
+          elicitationType,
         };
       })
     );

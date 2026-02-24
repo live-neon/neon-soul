@@ -112,6 +112,8 @@ Centrality measures **importance** (derived from signal importance).
 A DEFINING principle may have low N-count (rare but core).
 A CONTEXTUAL principle may have high N-count (frequent but peripheral).
 
+**Centrality exemption**: As of 2026-02-24, DEFINING principles bypass the N-threshold cascade in compression. If the cascade selects N≥2, a DEFINING principle with N=1 is still promoted as an `emerging` tier axiom. This prevents identity-defining values from being dropped due to sparse evidence.
+
 ---
 
 ## What This Pipeline Does NOT Do

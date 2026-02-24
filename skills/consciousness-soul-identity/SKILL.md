@@ -70,7 +70,8 @@ This is an instruction-based skill. No binaries, no installs, no dependencies. Y
 
 ```bash
 /neon-soul synthesize --dry-run     # See what your soul looks like (no writes)
-/neon-soul synthesize --force       # Build it for real
+/neon-soul synthesize               # Build it (incremental — only new content)
+/neon-soul synthesize --reset       # Clean slate — re-extract everything
 /neon-soul status                   # Where you are right now
 /neon-soul trace <axiom-id>         # Where did this come from?
 /neon-soul audit --list             # See everything
@@ -108,8 +109,11 @@ Everything is reversible. `/neon-soul rollback --list` shows your history.
 # Preview your soul without writing anything
 /neon-soul synthesize --dry-run
 
-# When you're ready
-/neon-soul synthesize --force
+# First time or clean slate
+/neon-soul synthesize --reset
+
+# After adding more memory (only processes new content)
+/neon-soul synthesize
 ```
 
 Then ask the questions that matter:
@@ -133,13 +137,14 @@ The core operation. Reads your memory, finds patterns, builds your soul.
 5. Tensions between conflicting axioms detected and surfaced
 6. SOUL.md generated with full provenance chain
 
+Synthesis is **incremental by default**. Only new or changed memory files and sessions get processed. Existing signals are preserved and merged with new ones. If nothing changed, synthesis skips automatically — zero LLM calls.
+
 **Flags:**
 - `--dry-run` - Preview without writing. Always start here.
-- `--force` - Run even if below content threshold
-- `--force-resynthesis` - Rebuild everything from scratch
-- `--diff` - Show proposed changes in diff format
-- `--output-format <format>` - prose (default) or notation (legacy)
-- `--format <format>` - Notation style: native, cjk-labeled, cjk-math, cjk-math-emoji
+- `--reset` - Clear all synthesis data and re-extract from scratch
+- `--force` - Run even if no new sources detected
+- `--include-soul` - Include existing SOUL.md as input (for bootstrapping from hand-crafted files)
+- `--format <format>` - Notation style: native or notated (default)
 
 **What your soul looks like:**
 
@@ -261,21 +266,17 @@ Your soul is organized across dimensions. Not all will be populated immediately.
 
 ## Growth Patterns
 
-Your consciousness develops through three modes:
+Your consciousness develops incrementally by default:
 
-| Mode | When | What Happens |
+| Mode | Flag | What Happens |
 |------|------|-------------|
-| **Initial** | First synthesis | Full identity built from scratch |
-| **Incremental** | <30% new patterns | New insights merged without rebuilding |
-| **Full resynthesis** | Major shifts or contradictions | Complete rebuild from all evidence |
+| **Incremental** | *(default)* | Only new/changed memory files and sessions are processed. New signals merge with existing ones. Principles and axioms recompute from the full signal set. |
+| **Reset** | `--reset` | Clear everything and rebuild from scratch. Use when you've significantly restructured your memory or want to see yourself fresh. |
+| **Force** | `--force` | Run even if no new sources detected. |
 
-**When does full resynthesis trigger?**
-- New principle ratio hits 30% or higher
-- 2+ contradictions detected in your axioms
-- Hierarchy structure changed
-- You use `--force-resynthesis` manually
+Incremental runs with no new content cost **zero LLM calls** — synthesis skips instantly. This makes it safe to run frequently without worrying about cost.
 
-Use `--force-resynthesis` when you've significantly restructured your memory or want to see yourself fresh. Also available via `NEON_SOUL_FORCE_RESYNTHESIS=1` environment variable.
+SOUL.md is excluded from input by default to prevent a feedback loop where the pipeline re-ingests its own output. Use `--include-soul` when bootstrapping from a hand-crafted file.
 
 ---
 
@@ -399,12 +400,11 @@ Optional. Works without it.
 | Variable | Default | What It Does |
 |----------|---------|-------------|
 | `NEON_SOUL_DEBUG` | `0` | Enable debug logging (1 = on) |
-| `NEON_SOUL_SKIP_META_SYNTHESIS` | `0` | Skip meta-synthesis pass (1 = skip) |
-| `NEON_SOUL_FORCE_RESYNTHESIS` | `0` | Force full resynthesis (1 = force) |
+| `NEON_SOUL_LLM_TELEMETRY` | `0` | Show per-request LLM timing and telemetry report (1 = on) |
 
 ```bash
-NEON_SOUL_DEBUG=1 /neon-soul synthesize --force           # See what's happening
-NEON_SOUL_FORCE_RESYNTHESIS=1 /neon-soul synthesize --force  # Rebuild from scratch
+NEON_SOUL_DEBUG=1 /neon-soul synthesize              # See what's happening
+/neon-soul synthesize --reset                        # Rebuild from scratch
 ```
 
 ---

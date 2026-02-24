@@ -8,14 +8,17 @@ import { resolve, dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
 export interface MemoryFileState {
-  file: string;
-  line: number;
+  /** Content hash for change detection */
+  contentHash: string;
+  /** When this file was last processed */
   processedAt: string;
 }
 
 export interface SessionFileState {
   /** Number of lines processed in this session file */
   lineCount: number;
+  /** Number of messages processed in this session file */
+  messageCount: number;
   /** When this session was last processed */
   lastProcessedAt: string;
 }
@@ -66,7 +69,12 @@ export function loadState(workspacePath: string): SynthesisState {
   const statePath = getStatePath(workspacePath);
 
   if (!existsSync(statePath)) {
-    return { ...DEFAULT_STATE };
+    // Deep copy to prevent mutation of DEFAULT_STATE shared references
+    return {
+      lastRun: { ...DEFAULT_STATE.lastRun, memoryFiles: {} },
+      processedSessions: {},
+      metrics: { ...DEFAULT_STATE.metrics },
+    };
   }
 
   try {
@@ -110,6 +118,18 @@ export function saveState(
   const tempPath = resolve(stateDir, `.tmp-state-${randomUUID()}`);
   writeFileSync(tempPath, JSON.stringify(state, null, 2), 'utf-8');
   renameSync(tempPath, statePath);
+}
+
+/**
+ * Clear all synthesis state (for --reset).
+ * Resets processedSessions, memoryFiles, and metrics to defaults.
+ */
+export function clearState(workspacePath: string): void {
+  saveState(workspacePath, {
+    lastRun: { ...DEFAULT_STATE.lastRun },
+    processedSessions: {},
+    metrics: { ...DEFAULT_STATE.metrics },
+  });
 }
 
 /**

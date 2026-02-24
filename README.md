@@ -87,22 +87,24 @@ To unblock, add external validation (feedback, research, critique) to your memor
 
 ---
 
-## Cycle Management
+## Incremental Synthesis
 
-Synthesis adapts based on how much has changed:
+Synthesis is **incremental by default** — only new or changed content triggers signal extraction:
 
-| Mode | When | Behavior |
+| Mode | Flag | Behavior |
 |------|------|----------|
-| **initial** | First synthesis | Full synthesis from scratch |
-| **incremental** | <30% new principles | Merge insights efficiently |
-| **full-resynthesis** | Major changes | Complete rebuild |
+| **Incremental** | *(default)* | Only process new/changed memory files and sessions. Merge new signals with existing. Skip if nothing changed. |
+| **Reset** | `--reset` | Clear all synthesis data and re-extract from scratch. |
+| **Force** | `--force` | Run even if no new sources detected. |
+| **Include SOUL** | `--include-soul` | Include existing SOUL.md as input (off by default to prevent feedback loop). |
 
-Full resynthesis triggers automatically when:
-- New principle ratio ≥30%
-- Contradictions detected (≥2)
-- Hierarchy structure changed
+```bash
+/neon-soul synthesize              # Incremental (default)
+/neon-soul synthesize --reset      # Clean slate
+/neon-soul synthesize --force      # Force even if no changes
+```
 
-Manual trigger: `--force-resynthesis` flag.
+SOUL.md is excluded from input by default — it's a derivative of the pipeline's own output. Re-ingesting it inflates LLM request counts. Use `--include-soul` when bootstrapping from a hand-crafted file.
 
 ---
 
@@ -348,7 +350,7 @@ After installing, try these commands:
 
 1. `/neon-soul status` - See your current state
 2. `/neon-soul synthesize --dry-run` - Preview synthesis (no changes)
-3. `/neon-soul synthesize --force` - Run synthesis when ready
+3. `/neon-soul synthesize` - Run synthesis (incremental by default)
 4. `/neon-soul audit --list` - Explore what was created
 5. `/neon-soul trace <axiom-id>` - See provenance for any axiom
 
@@ -439,7 +441,7 @@ npm install && npm run build
 
 **Phase**: ✅ Production Ready (All Phases Complete)
 
-**Version**: 0.2.1 | **Tests**: 338 passing (19 skipped, 12 todo) | **Code Reviews**: 5 rounds (N=2 cross-architecture)
+**Version**: 0.2.1 | **Tests**: 415 passing (19 skipped, 12 todo) | **Code Reviews**: 5 rounds (N=2 cross-architecture)
 
 ### Implementation Complete
 

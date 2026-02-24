@@ -392,7 +392,7 @@ describe('Session Reader', () => {
   });
 
   describe('sessionToMemoryContent', () => {
-    it('converts session to markdown format', () => {
+    it('converts session to message-level format', () => {
       const content = sessionToMemoryContent({
         id: 'abc12345-long-id',
         path: '/sessions/test.jsonl',
@@ -408,12 +408,58 @@ describe('Session Reader', () => {
         lineCount: 3,
       });
 
-      expect(content).toContain('## Conversation abc12345');
-      expect(content).toContain('2026-02-22');
-      expect(content).toContain('**User**: What do you value most?');
-      expect(content).toContain(
-        '**Assistant**: I value honesty and clarity.'
-      );
+      expect(content).toContain('[Human]: What do you value most?');
+      expect(content).toContain('[Agent]: I value honesty and clarity.');
+      // Each message should be on its own line
+      const lines = content.split('\n');
+      expect(lines).toHaveLength(2);
+    });
+
+    it('collapses newlines within messages', () => {
+      const content = sessionToMemoryContent({
+        id: 'test',
+        path: '/sessions/test.jsonl',
+        timestamp: '2026-02-22T08:00:00.000Z',
+        messages: [
+          { id: 'msg1', role: 'user', text: 'Line one\nLine two\nLine three' },
+        ],
+        lineCount: 2,
+      });
+
+      expect(content).toBe('[Human]: Line one Line two Line three');
+    });
+
+    it('truncates long messages', () => {
+      const longText = 'x'.repeat(1000);
+      const content = sessionToMemoryContent({
+        id: 'test',
+        path: '/sessions/test.jsonl',
+        timestamp: '2026-02-22T08:00:00.000Z',
+        messages: [
+          { id: 'msg1', role: 'assistant', text: longText },
+        ],
+        lineCount: 2,
+      });
+
+      // [Agent]: prefix + 500 chars max
+      expect(content.length).toBeLessThanOrEqual('[Agent]: '.length + 500);
+    });
+
+    it('skips empty messages', () => {
+      const content = sessionToMemoryContent({
+        id: 'test',
+        path: '/sessions/test.jsonl',
+        timestamp: '2026-02-22T08:00:00.000Z',
+        messages: [
+          { id: 'msg1', role: 'user', text: '' },
+          { id: 'msg2', role: 'user', text: 'I prefer clarity' },
+        ],
+        lineCount: 3,
+      });
+
+      const lines = content.split('\n');
+      expect(lines).toHaveLength(1);
+      expect(content).toContain('[Human]: I prefer clarity');
     });
   });
 

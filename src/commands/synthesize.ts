@@ -36,6 +36,8 @@ interface CommandOptions {
   dryRun: boolean;
   // M-1 FIX: Removed unused 'diff' option - was parsed but never used
   verbose: boolean;
+  reset: boolean;
+  includeSoul: boolean;
 }
 
 /**
@@ -54,6 +56,8 @@ function parseArgs(args: string[]): CommandOptions {
     force: false,
     dryRun: false,
     verbose: false,
+    reset: false,
+    includeSoul: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -89,6 +93,12 @@ function parseArgs(args: string[]): CommandOptions {
       case '--verbose':
         options.verbose = true;
         break;
+      case '--reset':
+        options.reset = true;
+        break;
+      case '--include-soul':
+        options.includeSoul = true;
+        break;
       case '--help':
       case '-h':
         printHelp();
@@ -116,6 +126,9 @@ Options:
                          - notated: LLM-generated CJK/emoji/math (default)
   --force                Run even if below content threshold
   --dry-run              Preview changes without writing
+  --reset                Clear all synthesis data and re-extract from scratch
+  --include-soul         Include existing SOUL.md as input source
+                         (for bootstrapping from hand-crafted files)
   --verbose              Show detailed progress
   --help, -h             Show this help message
 
@@ -147,6 +160,8 @@ async function runSynthesisWithLLM(options: CommandOptions, llm: LLMProvider): P
     format: options.format,
     force: options.force,
     dryRun: options.dryRun,
+    reset: options.reset,
+    includeSoul: options.includeSoul,
   };
 
   const result = await runPipeline(pipelineOptions);
@@ -238,6 +253,8 @@ export async function run(
     format: options.format,
     force: options.force,
     dryRun: options.dryRun,
+    reset: options.reset,
+    includeSoul: options.includeSoul,
     // M-1 FIX: Removed showDiff - was never used by pipeline
   };
 

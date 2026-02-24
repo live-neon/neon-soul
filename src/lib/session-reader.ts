@@ -199,21 +199,43 @@ export async function parseSessionFile(
 }
 
 /**
- * Convert a session file into markdown content suitable for signal extraction.
- * Produces a format similar to memory files so the existing
- * extractSignalsFromContent() pipeline works without changes.
+ * Maximum characters per message when converting sessions to signal input.
+ * Agent messages can be very long (code, tool output, explanations).
+ * Truncating keeps batch sizes reasonable while preserving the identity-
+ * relevant content, which is usually in the first few sentences.
  */
-export function sessionToMemoryContent(session: SessionFile): string {
-  const date = session.timestamp.split('T')[0] ?? session.timestamp;
-  const lines: string[] = [
-    `## Conversation ${session.id.slice(0, 8)} (${date})`,
-    '',
-  ];
+const MAX_MESSAGE_CHARS = 500;
 
-  for (const msg of session.messages) {
-    const role = msg.role === 'user' ? 'User' : 'Assistant';
-    lines.push(`**${role}**: ${msg.text}`);
-    lines.push('');
+/**
+ * Convert a session file into content suitable for signal extraction.
+ *
+ * Each message becomes a single line prefixed with [Human] or [Agent].
+ * Newlines within messages are collapsed to spaces. Long messages are
+ * truncated to MAX_MESSAGE_CHARS.
+ *
+ * This produces one candidate per message (not per line), so the batch
+ * detector evaluates whole messages at a time — dramatically fewer LLM calls.
+ */
+export function sessionToMemoryContent(
+  session: SessionFile,
+  startFromMessage: number = 0
+): string {
+  const lines: string[] = [];
+  const messages = startFromMessage > 0
+    ? session.messages.slice(startFromMessage)
+    : session.messages;
+
+  for (const msg of messages) {
+    const role = msg.role === 'user' ? 'Human' : 'Agent';
+    // Collapse newlines to spaces, normalize whitespace
+    let text = msg.text.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
+    // Truncate long messages
+    if (text.length > MAX_MESSAGE_CHARS) {
+      text = text.slice(0, MAX_MESSAGE_CHARS);
+    }
+    if (text.length > 0) {
+      lines.push(`[${role}]: ${text}`);
+    }
   }
 
   return lines.join('\n');

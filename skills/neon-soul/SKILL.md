@@ -42,21 +42,27 @@ Soul synthesis for AI agents. Reads memory files and session logs, finds recurri
 Run the bundled processing engine. This is a single exec command:
 
 ```
-exec node {baseDir}/scripts/neon-soul.mjs synthesize --force
+exec node {baseDir}/scripts/neon-soul.mjs synthesize
 ```
+
+Synthesis is **incremental by default** — only new/changed memory files and sessions are processed. Existing signals are preserved and merged with new ones. If nothing changed since the last run, synthesis skips automatically.
 
 The script auto-detects Ollama, reads memory files and session logs, extracts signals, promotes axioms, and generates SOUL.md. It outputs JSON.
 
 Report the JSON result to the user when done.
 
 **Options:**
-- `--force` — Run even if below content threshold
+- `--reset` — Clear all synthesis data and re-extract from scratch
+- `--force` — Run even if no new sources detected
 - `--dry-run` — Preview changes without writing
+- `--include-soul` — Include existing SOUL.md as input (for bootstrapping from hand-crafted files)
 - `--memory-path <path>` — Override memory directory
 - `--output-path <path>` — Override SOUL.md location
 
 **Examples:**
 ```
+exec node {baseDir}/scripts/neon-soul.mjs synthesize
+exec node {baseDir}/scripts/neon-soul.mjs synthesize --reset
 exec node {baseDir}/scripts/neon-soul.mjs synthesize --force
 exec node {baseDir}/scripts/neon-soul.mjs synthesize --dry-run
 ```

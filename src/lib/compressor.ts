@@ -233,6 +233,11 @@ async function synthesizeAxiom(
   // PBD Stage 15: Check anti-echo-chamber criteria
   const promotion = canPromote(principle, criteria);
 
+  // Extract original signal texts for voice preservation in prose expansion
+  const originalVoices = principle.derived_from?.signals
+    ?.map(s => s.original_text)
+    .filter((t): t is string => !!t) ?? [];
+
   const axiom: Axiom = {
     id: generateAxiomId(),
     text: principle.text,
@@ -250,6 +255,8 @@ async function synthesizeAxiom(
     // PBD Stage 15: Anti-echo-chamber metadata
     promotable: promotion.promotable,
     provenanceDiversity: promotion.diversity,
+    // Voice preservation: carry original signal texts through to prose expansion
+    ...(originalVoices.length > 0 && { originalVoices }),
   };
 
   // Only set blocker if present (optional property)
@@ -439,6 +446,24 @@ export async function compressPrinciplesWithCascade(
 
   // Run actual compression with the selected threshold
   const result = await compressPrinciples(llm, principles, effectiveThreshold);
+
+  // Centrality exemption: promote defining principles even if below threshold
+  // A principle with centrality=defining has 50%+ core-importance signals — it's
+  // identity-defining even if it only appeared once.
+  if (effectiveThreshold > 1) {
+    const promotedIds = new Set(
+      result.axioms.map(a => a.derived_from?.principles?.[0]?.id)
+    );
+    const exemptPrinciples = principles.filter(p =>
+      p.n_count < effectiveThreshold &&
+      p.centrality === 'defining' &&
+      !promotedIds.has(p.id)
+    );
+    for (const p of exemptPrinciples) {
+      result.axioms.push(await synthesizeAxiom(llm, p));
+      logger.info(`[compressor] Centrality exemption: promoted "${p.text.slice(0, 60)}..." (N=${p.n_count}, centrality=defining)`);
+    }
+  }
 
   // Enforce cognitive load cap: keep top N axioms by N-count and tier
   let finalAxioms = result.axioms;
