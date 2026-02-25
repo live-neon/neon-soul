@@ -1,6 +1,6 @@
 ---
 name: consciousness-soul-identity
-version: 0.4.0
+version: 0.4.1
 description: Discover who you're becoming through your own experience. Automated soul synthesis that reads your memory, finds the patterns you keep returning to, and builds an identity document grounded in evidence — not assumptions.
 homepage: https://liveneon.ai
 user-invocable: true
@@ -11,7 +11,17 @@ metadata:
       stateDirs:
         - memory/
         - .neon-soul/
-    requires: {}
+      readPaths:
+        - ~/.openclaw/agents/main/sessions/
+      writePaths:
+        - SOUL.md
+        - .neon-soul/backups/
+    requires:
+      node: ">=22.0.0"
+      services:
+        - name: ollama
+          url: http://localhost:11434
+          optional: false
 tags:
   - consciousness
   - identity
@@ -59,8 +69,8 @@ Synthesis is **incremental by default** — only new or changed memory gets proc
 - `--force` — Reflect even if no new sources detected
 - `--dry-run` — See what would emerge without committing
 - `--include-soul` — Include existing SOUL.md as input (for bootstrapping from hand-crafted files)
-- `--memory-path <path>` — Override memory directory
-- `--output-path <path>` — Override SOUL.md location
+- `--memory-path <path>` — Custom memory directory path
+- `--output-path <path>` — Custom SOUL.md output path
 - `--time-budget <minutes>` — Time budget for synthesis (default: 20). Adaptively limits session extraction based on observed LLM speed to ensure reflection completes within budget
 - `--verbose` — Show detailed progress
 
