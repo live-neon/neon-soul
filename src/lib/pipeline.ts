@@ -140,6 +140,8 @@ export interface PipelineContext {
     budgetExhausted?: boolean;
     /** Number of sessions skipped due to budget constraint */
     sessionsSkippedByBudget?: number;
+    /** Session IDs that were actually extracted (vs skipped by budget) */
+    extractedSessionIds?: Set<string>;
   };
   /** Error if pipeline failed */
   error?: Error;
@@ -654,6 +656,8 @@ async function extractSignals(
   const preSessionRequests = context.telemetry?.getSummary().totalRequests ?? 0;
   let sessionsExtracted = 0;
   let budgetExhausted = false;
+  const extractedSessionIds = new Set<string>();
+  incremental.extractedSessionIds = extractedSessionIds;
 
   if (sessionsToProcess.length > 0) {
     context.options.onProgress?.('extract-signals', 80, `Extracting from ${sessionsToProcess.length} new session files`);
@@ -705,6 +709,7 @@ async function extractSignals(
         });
         newSignals.push(...sessionSignals);
       }
+      extractedSessionIds.add(session.id);
       sessionsExtracted++;
     }
   }
@@ -761,6 +766,7 @@ async function extractSignals(
         });
         newSignals.push(...sessionSignals);
       }
+      extractedSessionIds.add(session.id);
       sessionsExtracted++;
     }
   }
@@ -884,13 +890,18 @@ async function validateOutput(
       }
       state.lastRun.memoryFiles = memoryFileMap;
 
-      // Track processed sessions
+      // Track processed sessions — only mark sessions that were actually extracted.
+      // Sessions skipped by the adaptive budget remain unmarked so they get
+      // picked up on the next run (newest-first ensures recent sessions take priority).
+      const extracted = context.incremental?.extractedSessionIds;
       for (const session of collected.sessionFiles) {
-        state.processedSessions[session.id] = {
-          lineCount: session.lineCount,
-          messageCount: session.messages.length,
-          lastProcessedAt: new Date().toISOString(),
-        };
+        if (!extracted || extracted.has(session.id)) {
+          state.processedSessions[session.id] = {
+            lineCount: session.lineCount,
+            messageCount: session.messages.length,
+            lastProcessedAt: new Date().toISOString(),
+          };
+        }
       }
     }
 
