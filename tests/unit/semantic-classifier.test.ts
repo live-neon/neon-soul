@@ -382,9 +382,9 @@ describe('classifySignalStructured', () => {
     expect(result.stance).toBe('assert');
 
     // Second and third prompts should contain corrective feedback
-    expect(generatePrompts[1]).toContain('IMPORTANT');
+    expect(generatePrompts[1]).toContain('Previous response was not valid');
     expect(generatePrompts[1]).toContain('invalid garbage');
-    expect(generatePrompts[2]).toContain('IMPORTANT');
+    expect(generatePrompts[2]).toContain('Previous response was not valid');
   });
 });
 
