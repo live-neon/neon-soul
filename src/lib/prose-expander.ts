@@ -25,7 +25,7 @@ import { logger } from './logger.js';
  * This is the core mechanism for preventing the LLM from smoothing
  * original voices into generic corporate prose.
  */
-const VOICE_PRESERVATION_INSTRUCTION = `CRITICAL — Voice Preservation Rules:
+const VOICE_PRESERVATION_INSTRUCTION = `Voice Preservation Rules:
 1. The quoted voices below ARE the identity. They are your primary source material.
 2. "(theme: ...)" lines are just labels for grouping — do NOT write from them.
 3. Quote or closely paraphrase original voices when they are more vivid than anything you could write.
@@ -265,7 +265,7 @@ Output ONLY the Core Truths section content, no headers or extra text.`;
     // Retry with corrective feedback
     const retryPrompt = `${prompt}
 
-IMPORTANT: Your previous response didn't use the required format. Each truth MUST have a **bold principle** followed by elaboration. Try again.`;
+Previous response didn't use the required format. Each truth needs a **bold principle** followed by elaboration. Try again.`;
 
     const retryResult = await llm.generate(retryPrompt);
     const retryContent = retryResult.text.trim();
@@ -336,7 +336,7 @@ Output ONLY the Voice section content, no headers.`;
     // Retry
     const retryPrompt = `${prompt}
 
-IMPORTANT: Your response must be prose paragraphs (NO bullet points) and use second person ("You..."). Include a "Think:" analogy line. Try again.`;
+Response must be prose paragraphs (NO bullet points) and use second person ("You..."). Include a "Think:" analogy line. Try again.`;
 
     const retryResult = await llm.generate(retryPrompt);
     const retryContent = retryResult.text.trim();
@@ -415,7 +415,7 @@ Output ONLY the Boundaries section content, no headers. Each line must start wit
     // Retry
     const retryPrompt = `${prompt}
 
-IMPORTANT: EVERY line must start with "You don't" or "You won't" or "You're not" or "You never". No other formats allowed. Try again.`;
+Every line must start with "You don't" or "You won't" or "You're not" or "You never". No other formats allowed. Try again.`;
 
     const retryResult = await llm.generate(retryPrompt);
     const retryContent = retryResult.text.trim();
@@ -492,7 +492,7 @@ Output ONLY the Vibe section content, no headers.`;
     // Retry
     const retryPrompt = `${prompt}
 
-IMPORTANT: Keep it to 2-4 sentences only. Be concise and evocative. Try again.`;
+Keep it to 2-4 sentences only. Be concise and evocative. Try again.`;
 
     const retryResult = await llm.generate(retryPrompt);
     const retryContent = retryResult.text.trim();
@@ -591,7 +591,7 @@ Output ONLY the tagline, no formatting, no quotes.`;
     // Retry
     const retryPrompt = `${prompt}
 
-IMPORTANT: Under 15 words. Single statement. Not a list. Try again.`;
+Under 15 words. Single statement. Not a list. Try again.`;
 
     const retryResult = await llm.generate(retryPrompt);
     let retryContent = retryResult.text.trim();

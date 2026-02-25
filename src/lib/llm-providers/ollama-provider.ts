@@ -128,7 +128,7 @@ export class OllamaLLMProvider implements LLMProvider {
    * Send a chat completion request to Ollama.
    */
   private async chat(
-    systemPrompt: string,
+    ollamaPrompt: string,
     userPrompt: string
   ): Promise<string> {
     const controller = new AbortController();
@@ -143,7 +143,7 @@ export class OllamaLLMProvider implements LLMProvider {
         body: JSON.stringify({
           model: this.model,
           messages: [
-            { role: 'system', content: systemPrompt },
+            { role: 'system', content: ollamaPrompt },
             { role: 'user', content: userPrompt },
           ],
           stream: false,
@@ -274,18 +274,18 @@ export class OllamaLLMProvider implements LLMProvider {
   ): Promise<ClassificationResult<T>> {
     const categories = options.categories;
 
-    const systemPrompt = `You are a precise classifier. Your task is to classify the given text into exactly one of the following categories:
+    const ollamaPrompt = `Classify the given text into exactly one of the following categories:
 
 ${categories.map((c, i) => `${i + 1}. ${c}`).join('\n')}
 
-IMPORTANT: Respond with ONLY the category name, nothing else. No explanation, no punctuation, just the exact category name from the list above.`;
+Respond with ONLY the category name, nothing else. No explanation, no punctuation, just the exact category name from the list above.`;
 
     const userPrompt = options.context
       ? `Context: ${options.context}\n\nText to classify:\n${prompt}`
       : prompt;
 
     try {
-      const response = await this.chat(systemPrompt, userPrompt);
+      const response = await this.chat(ollamaPrompt, userPrompt);
 
       // Try fast string matching (exact/substring)
       const fastMatch = this.extractCategoryFast(response, categories);
@@ -329,11 +329,10 @@ IMPORTANT: Respond with ONLY the category name, nothing else. No explanation, no
    * Used for notation generation.
    */
   async generate(prompt: string): Promise<GenerationResult> {
-    const systemPrompt =
-      'You are a helpful assistant. Follow the user instructions precisely.';
+    const ollamaPrompt = 'Follow the instructions precisely.';
 
     try {
-      const response = await this.chat(systemPrompt, prompt);
+      const response = await this.chat(ollamaPrompt, prompt);
       return { text: response.trim() };
     } catch (error) {
       if (error instanceof OllamaNotAvailableError) {

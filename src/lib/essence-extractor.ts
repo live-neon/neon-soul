@@ -50,11 +50,11 @@ export async function extractEssence(
     .join('\n');
 
   // Prompt following essence-extraction-guide.md methodology
-  const prompt = `You are distilling the essence of an AI identity.
+  const prompt = `Distill the essence of an AI identity.
 
 Below are the axioms that define this AI's core values and behaviors.
-Your task is NOT to summarize these axioms.
-Your task is to capture what they EVOKE — the single truth they point to.
+The task is NOT to summarize these axioms.
+The task is to capture what they EVOKE — the single truth they point to.
 
 Think of it like this:
 - "Bon Iver meets The National" is a description
@@ -66,7 +66,7 @@ The essence should:
 - Capture MOVEMENT and BECOMING, not static traits
 - Use verbs like "seeking," "growing," "becoming," "bridging"
 
-CRITICAL: Do NOT write a comma-separated list of traits.
+Do NOT write a comma-separated list of traits.
 BAD: "authentic, honest, and helpful" (trait list)
 BAD: "a tapestry woven from threads of honesty and sincerity" (metaphorical trait list)
 BAD: "You are transparent, direct, and caring" (static traits)
