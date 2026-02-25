@@ -38,6 +38,7 @@ interface CommandOptions {
   verbose: boolean;
   reset: boolean;
   includeSoul: boolean;
+  timeBudgetMinutes: number;
 }
 
 /**
@@ -58,6 +59,7 @@ function parseArgs(args: string[]): CommandOptions {
     verbose: false,
     reset: false,
     includeSoul: false,
+    timeBudgetMinutes: parseInt(process.env['NEON_SOUL_TIME_BUDGET'] ?? '20', 10),
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -99,6 +101,12 @@ function parseArgs(args: string[]): CommandOptions {
       case '--include-soul':
         options.includeSoul = true;
         break;
+      case '--time-budget':
+        if (next) {
+          options.timeBudgetMinutes = parseInt(next, 10);
+          i++;
+        }
+        break;
       case '--help':
       case '-h':
         printHelp();
@@ -129,6 +137,10 @@ Options:
   --reset                Clear all synthesis data and re-extract from scratch
   --include-soul         Include existing SOUL.md as input source
                          (for bootstrapping from hand-crafted files)
+  --time-budget <min>    Time budget in minutes (default: 20).
+                         Adaptively limits session extraction to
+                         ensure synthesis completes within budget.
+                         Also: NEON_SOUL_TIME_BUDGET env var.
   --verbose              Show detailed progress
   --help, -h             Show this help message
 
@@ -162,6 +174,7 @@ async function runSynthesisWithLLM(options: CommandOptions, llm: LLMProvider): P
     dryRun: options.dryRun,
     reset: options.reset,
     includeSoul: options.includeSoul,
+    timeBudgetMinutes: options.timeBudgetMinutes,
   };
 
   const result = await runPipeline(pipelineOptions);
@@ -255,6 +268,7 @@ export async function run(
     dryRun: options.dryRun,
     reset: options.reset,
     includeSoul: options.includeSoul,
+    timeBudgetMinutes: options.timeBudgetMinutes,
     // M-1 FIX: Removed showDiff - was never used by pipeline
   };
 

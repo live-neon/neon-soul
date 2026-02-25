@@ -306,7 +306,7 @@ describe('Session Reader', () => {
       expect(sessions).toHaveLength(2);
     });
 
-    it('sorts sessions by timestamp (oldest first)', async () => {
+    it('sorts sessions by timestamp (newest first)', async () => {
       createSessionFile(testDir, 'later.jsonl', [
         {
           type: 'session',
@@ -342,8 +342,8 @@ describe('Session Reader', () => {
 
       const sessions = await readSessionFiles(testDir);
 
-      expect(sessions[0]!.id).toBe('earlier');
-      expect(sessions[1]!.id).toBe('later');
+      expect(sessions[0]!.id).toBe('later');
+      expect(sessions[1]!.id).toBe('earlier');
     });
 
     it('returns empty array for non-existent directory', async () => {

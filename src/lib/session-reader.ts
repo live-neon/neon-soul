@@ -103,8 +103,8 @@ export async function readSessionFiles(
     }
   }
 
-  // Sort by timestamp (oldest first)
-  sessions.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+  // Sort by timestamp (newest first — most identity-relevant sessions processed first)
+  sessions.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 
   return sessions;
 }

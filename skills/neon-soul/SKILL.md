@@ -61,6 +61,7 @@ The script auto-detects Ollama, reads memory files and session logs, extracts si
 - `--include-soul` — Include existing SOUL.md as input (for bootstrapping from hand-crafted files)
 - `--memory-path <path>` — Override memory directory
 - `--output-path <path>` — Override SOUL.md location
+- `--time-budget <minutes>` — Time budget for synthesis (default: 20). Adaptively limits session extraction based on observed LLM speed to ensure synthesis completes within budget
 
 **Examples:**
 ```

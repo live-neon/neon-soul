@@ -71,6 +71,10 @@ export interface PipelineOptions {
   reset?: boolean;
   /** Include existing SOUL.md as input source (for bootstrapping from hand-crafted files) */
   includeSoul?: boolean;
+  /** Time budget for synthesis in minutes (default: 20). Controls adaptive session extraction.
+   *  The pipeline estimates downstream LLM costs and stops reading sessions when the
+   *  remaining budget can't safely cover extraction + synthesis + generation. */
+  timeBudgetMinutes?: number;
   /** Progress callback */
   onProgress?: (stage: string, progress: number, message: string) => void;
 }
@@ -132,6 +136,10 @@ export interface PipelineContext {
     existingSignalCount: number;
     newSignalCount: number;
     isReset: boolean;
+    /** Whether extraction stopped early due to time budget */
+    budgetExhausted?: boolean;
+    /** Number of sessions skipped due to budget constraint */
+    sessionsSkippedByBudget?: number;
   };
   /** Error if pipeline failed */
   error?: Error;
@@ -631,14 +639,64 @@ async function extractSignals(
   }
 
   // Sessions: only new + changed
+  // Sessions are already sorted newest-first by readSessionFiles(), so the most
+  // identity-relevant conversations are processed first when budget cuts off.
   const sessionsToProcess = incremental.isReset
     ? collected.sessionFiles
     : incremental.newSessions;
+
+  // Adaptive time budget — estimates downstream LLM cost and stops extraction
+  // when remaining time can't safely cover synthesis + generation.
+  const timeBudgetMs = (context.options.timeBudgetMinutes ?? 20) * 60 * 1000;
+  const DOWNSTREAM_CALLS_PER_SIGNAL = 2.5;  // generalize + match + compress (amortized)
+  const GENERATION_OVERHEAD_CALLS = 5;       // soul generator + prose expansion
+  const SAFETY_FACTOR = 0.7;                 // reserve 30% margin
+  const preSessionRequests = context.telemetry?.getSummary().totalRequests ?? 0;
+  let sessionsExtracted = 0;
+  let budgetExhausted = false;
 
   if (sessionsToProcess.length > 0) {
     context.options.onProgress?.('extract-signals', 80, `Extracting from ${sessionsToProcess.length} new session files`);
 
     for (const session of sessionsToProcess) {
+      // Budget check: can we afford to process this session?
+      if (sessionsExtracted > 0 && context.telemetry) {
+        const summary = context.telemetry.getSummary();
+        if (summary.totalRequests > 0) {
+          const elapsed = Date.now() - context.timing.startTime.getTime();
+          const remaining = timeBudgetMs - elapsed;
+          const avgCallMs = summary.avgDurationMs;
+
+          const downstream = newSignals.length * DOWNSTREAM_CALLS_PER_SIGNAL * avgCallMs;
+          const sessionCalls = (summary.totalRequests - preSessionRequests) / sessionsExtracted;
+          const nextSession = sessionCalls * avgCallMs;
+          const genOverhead = GENERATION_OVERHEAD_CALLS * avgCallMs;
+          const estimatedWork = downstream + nextSession + genOverhead;
+          const budgetCeiling = remaining * SAFETY_FACTOR;
+
+          logger.info(
+            `Budget check [${sessionsExtracted}/${sessionsToProcess.length}]: ` +
+            `${newSignals.length} signals, ${(elapsed / 1000).toFixed(0)}s elapsed, ` +
+            `${(remaining / 1000).toFixed(0)}s remaining | ` +
+            `est. work: ${(estimatedWork / 1000).toFixed(0)}s ` +
+            `(downstream=${(downstream / 1000).toFixed(0)}s + next=${(nextSession / 1000).toFixed(0)}s + gen=${(genOverhead / 1000).toFixed(0)}s) ` +
+            `vs budget: ${(budgetCeiling / 1000).toFixed(0)}s`
+          );
+
+          if (estimatedWork > budgetCeiling) {
+            const skipped = sessionsToProcess.length - sessionsExtracted;
+            logger.info(
+              `Adaptive budget: stopping after ${sessionsExtracted}/${sessionsToProcess.length} sessions. ` +
+              `Reserving time for downstream synthesis.`
+            );
+            budgetExhausted = true;
+            incremental.budgetExhausted = true;
+            incremental.sessionsSkippedByBudget = skipped;
+            break;
+          }
+        }
+      }
+
       const content = sessionToMemoryContent(session);
       if (content.trim().length > 0) {
         const sessionSignals = await extractSignalsFromContent(llm, content, {
@@ -647,14 +705,54 @@ async function extractSignals(
         });
         newSignals.push(...sessionSignals);
       }
+      sessionsExtracted++;
     }
   }
 
   // Sessions with new messages: extract only from new messages
-  if (incremental.changedSessions.length > 0) {
+  if (!budgetExhausted && incremental.changedSessions.length > 0) {
     context.options.onProgress?.('extract-signals', 90, `Extracting new messages from ${incremental.changedSessions.length} sessions`);
 
     for (const { session, previousMessageCount } of incremental.changedSessions) {
+      // Budget check for changed sessions too
+      if (sessionsExtracted > 0 && context.telemetry) {
+        const summary = context.telemetry.getSummary();
+        if (summary.totalRequests > 0) {
+          const elapsed = Date.now() - context.timing.startTime.getTime();
+          const remaining = timeBudgetMs - elapsed;
+          const avgCallMs = summary.avgDurationMs;
+
+          const downstream = newSignals.length * DOWNSTREAM_CALLS_PER_SIGNAL * avgCallMs;
+          const sessionCalls = (summary.totalRequests - preSessionRequests) / sessionsExtracted;
+          const nextSession = sessionCalls * avgCallMs;
+          const genOverhead = GENERATION_OVERHEAD_CALLS * avgCallMs;
+          const estimatedWork = downstream + nextSession + genOverhead;
+          const budgetCeiling = remaining * SAFETY_FACTOR;
+
+          const changedIdx = sessionsExtracted - sessionsToProcess.length;
+          logger.info(
+            `Budget check [changed ${Math.max(0, changedIdx)}/${incremental.changedSessions.length}]: ` +
+            `${newSignals.length} signals, ${(elapsed / 1000).toFixed(0)}s elapsed, ` +
+            `${(remaining / 1000).toFixed(0)}s remaining | ` +
+            `est. work: ${(estimatedWork / 1000).toFixed(0)}s vs budget: ${(budgetCeiling / 1000).toFixed(0)}s`
+          );
+
+          if (estimatedWork > budgetCeiling) {
+            const totalChanged = incremental.changedSessions.length;
+            const processedChanged = sessionsExtracted - sessionsToProcess.length;
+            const skipped = totalChanged - Math.max(0, processedChanged);
+            logger.info(
+              `Adaptive budget: stopping changed session extraction. ` +
+              `Reserving time for downstream synthesis.`
+            );
+            budgetExhausted = true;
+            incremental.budgetExhausted = true;
+            incremental.sessionsSkippedByBudget = (incremental.sessionsSkippedByBudget ?? 0) + skipped;
+            break;
+          }
+        }
+      }
+
       const content = sessionToMemoryContent(session, previousMessageCount);
       if (content.trim().length > 0) {
         const sessionSignals = await extractSignalsFromContent(llm, content, {
@@ -663,6 +761,7 @@ async function extractSignals(
         });
         newSignals.push(...sessionSignals);
       }
+      sessionsExtracted++;
     }
   }
 
