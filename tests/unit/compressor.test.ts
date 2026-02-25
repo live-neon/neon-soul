@@ -548,6 +548,99 @@ describe('Compressor', () => {
     });
   });
 
+  describe('originalVoices', () => {
+    it('populates originalVoices from principle signal original_text', async () => {
+      const llm = createMockLLM();
+      const principle: Principle = {
+        id: 'p1',
+        text: 'Values genuine help over performative filler',
+        dimension: 'honesty-framework',
+        n_count: 3,
+        strength: 1.0,
+        derived_from: {
+          signals: [
+            { id: 's1', similarity: 0.9, source: {} as any, original_text: 'Be genuinely helpful, not performatively helpful' },
+            { id: 's2', similarity: 0.85, source: {} as any, original_text: 'Skip the Great question! — just help' },
+            { id: 's3', similarity: 0.8, source: {} as any, original_text: 'Actions speak louder than filler words' },
+          ],
+          merged_at: new Date().toISOString(),
+        },
+        history: [],
+      };
+
+      const result = await compressPrinciples(llm, [principle], 3);
+
+      const axiom = result.axioms[0];
+      expect(axiom?.originalVoices).toBeDefined();
+      expect(axiom?.originalVoices).toHaveLength(3);
+      expect(axiom?.originalVoices).toContain('Be genuinely helpful, not performatively helpful');
+      expect(axiom?.originalVoices).toContain('Skip the Great question! — just help');
+    });
+
+    it('omits originalVoices when no original_text in signals', async () => {
+      const llm = createMockLLM();
+      const principles = [
+        createTestPrinciple('p1', 'Be honest', 5),
+      ];
+
+      const result = await compressPrinciples(llm, principles, 3);
+
+      const axiom = result.axioms[0];
+      expect(axiom?.originalVoices).toBeUndefined();
+    });
+  });
+
+  describe('centrality exemption', () => {
+    it('promotes defining-centrality principles below threshold', async () => {
+      const llm = createMockLLM();
+      const principles: Principle[] = [
+        createTestPrinciple('p1', 'Principle A', 3),
+        createTestPrinciple('p2', 'Principle B', 3),
+        createTestPrinciple('p3', 'Principle C', 3),
+        {
+          ...createTestPrinciple('p4', 'Have opinions', 1),
+          centrality: 'defining' as const,
+          derived_from: {
+            signals: [{ id: 's1', similarity: 0.9, source: {} as any, importance: 'core' as const }],
+            merged_at: new Date().toISOString(),
+          },
+        },
+      ];
+
+      const { compressPrinciplesWithCascade } = await import(
+        '../../src/lib/compressor.js'
+      );
+      const result = await compressPrinciplesWithCascade(llm, principles);
+
+      // Threshold should be 3 (p1, p2, p3 qualify), but p4 should be exempt
+      expect(result.cascade.effectiveThreshold).toBe(3);
+      expect(result.axioms).toHaveLength(4);
+      expect(result.axioms.some(a => a.text === 'Have opinions')).toBe(true);
+    });
+
+    it('does not exempt contextual-centrality principles', async () => {
+      const llm = createMockLLM();
+      const principles: Principle[] = [
+        createTestPrinciple('p1', 'Principle A', 3),
+        createTestPrinciple('p2', 'Principle B', 3),
+        createTestPrinciple('p3', 'Principle C', 3),
+        {
+          ...createTestPrinciple('p4', 'Low priority', 1),
+          centrality: 'contextual' as const,
+        },
+      ];
+
+      const { compressPrinciplesWithCascade } = await import(
+        '../../src/lib/compressor.js'
+      );
+      const result = await compressPrinciplesWithCascade(llm, principles);
+
+      expect(result.cascade.effectiveThreshold).toBe(3);
+      expect(result.axioms).toHaveLength(3);
+      expect(result.axioms.some(a => a.text === 'Low priority')).toBe(false);
+    });
+  });
+
   describe('getProvenanceDiversity', () => {
     it('counts distinct provenance types', () => {
       const principle: Principle = {

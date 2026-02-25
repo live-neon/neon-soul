@@ -9,7 +9,6 @@
 
 export { loadConfig, type NeonSoulConfig } from './lib/config.js';
 export {
-  cosineSimilarity,
   findBestMatch,
   DEFAULT_MATCH_THRESHOLD,
   type MatchResult,
@@ -25,6 +24,7 @@ export {
 export {
   extractSignalsFromContent,
   extractSignalsFromMemoryFiles,
+  isStructuralNoise,
   type ExtractionConfig,
 } from './lib/signal-extractor.js';
 // Stage 12: Signal source classification for identity validity
@@ -59,15 +59,6 @@ export {
   formatMetricsReport,
   type CompressionMetrics,
 } from './lib/metrics.js';
-export {
-  TrajectoryTracker,
-  calculateStyleMetrics,
-  formatTrajectoryReport,
-  type TrajectoryPoint,
-  type TrajectoryMetrics,
-  type StyleMetrics,
-} from './lib/trajectory.js';
-
 export type {
   Signal,
   SignalSource,
@@ -108,6 +99,14 @@ export {
   type PipelineResult,
   type SourceCollection,
 } from './lib/pipeline.js';
+
+// LLM Telemetry
+export {
+  LLMTelemetry,
+  type LLMRequestRecord,
+  type StageStats,
+  type TelemetrySummary,
+} from './lib/llm-telemetry.js';
 
 export {
   runReflectiveLoop,

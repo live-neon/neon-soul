@@ -25,6 +25,7 @@ import { join, extname } from 'node:path';
 import { existsSync } from 'node:fs';
 import { parseMarkdown, type ParsedMarkdown } from './markdown-reader.js';
 import { createMemoryWalker, type MemoryFile } from './memory-walker.js';
+import { readSessionFiles, getSessionMessageCount, type SessionFile } from './session-reader.js';
 import type { Signal } from '../types/signal.js';
 
 /**
@@ -39,6 +40,8 @@ export interface SourceCollection {
   userContext: UserContext | undefined;
   /** Interview response signals */
   interviewSignals: Signal[];
+  /** Parsed session log files */
+  sessionFiles: SessionFile[];
   /** Statistics */
   stats: SourceStats;
 }
@@ -89,6 +92,10 @@ export interface SourceStats {
   hasUserContext: boolean;
   /** Interview signal count */
   interviewSignalCount: number;
+  /** Session file count */
+  sessionFileCount: number;
+  /** Session message count */
+  sessionMessageCount: number;
   /** Total sources */
   totalSources: number;
 }
@@ -103,6 +110,10 @@ export interface CollectorOptions {
   includeUserContext?: boolean;
   /** Include interview responses */
   includeInterviews?: boolean;
+  /** Include OpenClaw session logs */
+  includeSessionLogs?: boolean;
+  /** Path to session logs directory (default: ~/.openclaw/agents/main/sessions) */
+  sessionLogPath?: string;
   /** Memory categories to include (empty = all) */
   memoryCategories?: string[];
 }
@@ -114,6 +125,7 @@ export const DEFAULT_COLLECTOR_OPTIONS: CollectorOptions = {
   includeSoul: true,
   includeUserContext: true,
   includeInterviews: true,
+  includeSessionLogs: true,
   memoryCategories: [],
 };
 
@@ -135,6 +147,8 @@ export async function collectSources(
     existingSoulTokens: 0,
     hasUserContext: false,
     interviewSignalCount: 0,
+    sessionFileCount: 0,
+    sessionMessageCount: 0,
     totalSources: 0,
   };
 
@@ -196,11 +210,26 @@ export async function collectSources(
     }
   }
 
+  // Collect session logs
+  let sessionFiles: SessionFile[] = [];
+  if (opts.includeSessionLogs) {
+    const sessionsPath = expandPath(
+      opts.sessionLogPath || '~/.openclaw/agents/main/sessions'
+    );
+    if (existsSync(sessionsPath)) {
+      sessionFiles = await readSessionFiles(sessionsPath);
+      stats.sessionFileCount = sessionFiles.length;
+      stats.sessionMessageCount = getSessionMessageCount(sessionFiles);
+      stats.totalSources += sessionFiles.length;
+    }
+  }
+
   return {
     memoryFiles,
     existingSoul,
     userContext,
     interviewSignals,
+    sessionFiles,
     stats,
   };
 }
@@ -314,6 +343,7 @@ export function formatSourceSummary(collection: SourceCollection): string {
     `| Existing SOUL.md | ${stats.hasExistingSoul ? `Yes (${stats.existingSoulTokens} tokens)` : 'No'} |`,
     `| USER.md | ${stats.hasUserContext ? 'Yes' : 'No'} |`,
     `| Interview signals | ${stats.interviewSignalCount} |`,
+    `| Session files | ${stats.sessionFileCount} (${stats.sessionMessageCount} messages) |`,
     `| **Total sources** | **${stats.totalSources}** |`,
     '',
   ];

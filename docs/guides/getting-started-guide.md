@@ -322,7 +322,7 @@ NEON-SOUL supports these optional environment variables for debugging and contro
 | `OPENCLAW_WORKSPACE` | `~/.openclaw/workspace` | Path to OpenClaw workspace |
 | `NEON_SOUL_DEBUG` | `false` | Enable verbose pipeline logging |
 | `NEON_SOUL_SKIP_META_SYNTHESIS` | `false` | Skip meta-pattern generation (faster runs) |
-| `NEON_SOUL_FORCE_RESYNTHESIS` | `false` | Force full resynthesis even if incremental would suffice |
+| `NEON_SOUL_LLM_TELEMETRY` | `false` | Show per-request LLM timing and telemetry report |
 
 Add any of these to your `.env` file or export them in your shell.
 
@@ -366,9 +366,17 @@ This shows:
 ### Full Synthesis
 
 ```bash
-# Run full synthesis
+# First run (or clean slate):
+npx tsx src/commands/synthesize.ts --reset
+
+# Subsequent runs (only processes new/changed content):
+npx tsx src/commands/synthesize.ts
+
+# Force run even if no new content detected:
 npx tsx src/commands/synthesize.ts --force
 ```
+
+Synthesis is **incremental by default** — it only extracts signals from new or changed memory files and sessions, then merges with existing signals. Use `--reset` for a clean slate re-extraction.
 
 Output location: `~/.openclaw/workspace/.neon-soul/`
 
@@ -468,7 +476,7 @@ Output:
 ## Next Steps
 
 1. **Add more memory**: Create files in `~/.openclaw/workspace/memory/`
-2. **Run synthesis again**: Watch axioms emerge as patterns converge
+2. **Run synthesis again**: Incremental runs only process new/changed content — fast and cheap
 3. **Explore provenance**: Use `/neon-soul audit` to understand your soul
 4. **Schedule synthesis**: Set up OpenClaw cron to run synthesis automatically (e.g., daily or weekly) so your soul stays current as memory grows
 5. **Configure channels**: Connect Telegram, Discord, or Slack to OpenClaw ([Channel Setup Guide](https://docs.openclaw.ai/channels))
@@ -488,11 +496,15 @@ docker compose logs -f openclaw         # Logs
 
 # NEON-SOUL (Terminal - requires Ollama)
 npx tsx src/commands/synthesize.ts --dry-run   # Preview changes
-npx tsx src/commands/synthesize.ts --force     # Run synthesis
+npx tsx src/commands/synthesize.ts             # Incremental run (default)
+npx tsx src/commands/synthesize.ts --reset     # Clean slate re-extraction
+npx tsx src/commands/synthesize.ts --force     # Force run even if no new sources
 npm test                                       # Run tests
 
 # NEON-SOUL (OpenClaw Chat Interface)
 /neon-soul status                       # Check state
+/neon-soul synthesize                   # Incremental synthesis (default)
+/neon-soul synthesize --reset           # Clean slate re-extraction
 /neon-soul synthesize --dry-run         # Preview changes
 /neon-soul rollback --force             # Restore backup
 ```

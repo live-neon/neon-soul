@@ -542,6 +542,113 @@ That's who you are.`,
     });
   });
 
+  describe('Voice Preservation', () => {
+    it('includes originalVoices in LLM prompts when present', async () => {
+      const llm = createMockLLM();
+      const generateSpy = vi.spyOn(llm, 'generate').mockResolvedValue({
+        text: '**Be genuine.** Skip the filler.',
+      });
+
+      const axiom: Axiom = {
+        ...createTestAxiom('ax1', 'Values genuine help', 'identity-core'),
+        originalVoices: [
+          'Be genuinely helpful, not performatively helpful',
+          'Skip the Great question! — just help',
+        ],
+      };
+
+      await expandToProse([axiom], llm);
+
+      // Check that at least one prompt contains the original voices
+      const calls = generateSpy.mock.calls;
+      const hasOriginalVoice = calls.some(call => {
+        const prompt = call[0];
+        return prompt.includes('Be genuinely helpful, not performatively helpful');
+      });
+      expect(hasOriginalVoice).toBe(true);
+    });
+
+    it('works without originalVoices (backward compatibility)', async () => {
+      const llm = createMockLLM();
+      vi.spyOn(llm, 'generate').mockResolvedValue({
+        text: '**Test.** Elaboration.',
+      });
+
+      const axioms = [createTestAxiom('ax1', 'Test axiom', 'identity-core')];
+      const result = await expandToProse(axioms, llm);
+
+      // Should not error, should still produce output
+      expect(result.coreTruths).toBeDefined();
+      expect(result.coreTruths.length).toBeGreaterThan(0);
+    });
+
+    it('positions original voices BEFORE theme in prompt (hierarchy flip)', async () => {
+      const llm = createMockLLM();
+      const generateSpy = vi.spyOn(llm, 'generate').mockResolvedValue({
+        text: '**Be genuine.** Skip the filler.',
+      });
+
+      const axiom: Axiom = {
+        ...createTestAxiom('ax1', 'Values genuine help', 'identity-core'),
+        originalVoices: [
+          'Be genuinely helpful, not performatively helpful',
+          'Skip the Great question! — just help',
+        ],
+      };
+
+      await expandToProse([axiom], llm);
+
+      const calls = generateSpy.mock.calls;
+      // Use specific prompt intro to avoid matching closing tagline prompt
+      const coreTruthsPrompt = calls.find(c =>
+        c[0].includes('Transform these identity voices into Core Truths')
+      )?.[0] ?? '';
+
+      // Extract the <axiom_data> block to check hierarchy within actual data (not examples)
+      const axiomDataMatch = coreTruthsPrompt.match(/<axiom_data>([\s\S]*?)<\/axiom_data>/);
+      expect(axiomDataMatch).not.toBeNull();
+      const axiomData = axiomDataMatch![1];
+
+      // Within the axiom data: original voices should appear BEFORE the theme
+      const voicePos = axiomData.indexOf('"Be genuinely helpful');
+      const themePos = axiomData.indexOf('(theme:');
+      expect(voicePos).toBeGreaterThan(-1);
+      expect(themePos).toBeGreaterThan(-1);
+      expect(voicePos).toBeLessThan(themePos);
+    });
+
+    it('includes Voice Preservation Rules in all section prompts', async () => {
+      const llm = createMockLLM();
+      const generateSpy = vi.spyOn(llm, 'generate').mockResolvedValue({
+        text: '**Test.** You are direct.\n\nYou don\'t fake it.\nYou won\'t hedge.\nYou\'re not vague.',
+      });
+
+      const axioms = [
+        { ...createTestAxiom('ax1', 'Be honest', 'identity-core'), originalVoices: ['Be honest'] },
+        { ...createTestAxiom('ax2', 'Be direct', 'voice-presence'), originalVoices: ['Be direct'] },
+        { ...createTestAxiom('ax3', 'Set limits', 'boundaries-ethics'), originalVoices: ['Set limits'] },
+        { ...createTestAxiom('ax4', 'Stay grounded', 'continuity-growth'), originalVoices: ['Stay grounded'] },
+      ];
+
+      await expandToProse(axioms, llm);
+
+      const calls = generateSpy.mock.calls;
+      // Match specific prompt intros to avoid catching the closing tagline prompt
+      const sectionPrompts = calls.map(c => c[0] as string).filter(p =>
+        p.includes('Transform these identity voices into Core Truths') ||
+        p.includes('Transform these voice and character voices into a Voice section') ||
+        p.includes('Generate a Boundaries section') ||
+        p.includes('Generate a Vibe section')
+      );
+
+      expect(sectionPrompts.length).toBeGreaterThanOrEqual(4);
+      for (const prompt of sectionPrompts) {
+        expect(prompt).toContain('Voice Preservation Rules');
+        expect(prompt).toContain('primary source material');
+      }
+    });
+  });
+
   describe('Edge Cases', () => {
     it('handles empty axiom array', async () => {
       const llm = createMockLLM();

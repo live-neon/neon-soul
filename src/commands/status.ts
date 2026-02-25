@@ -262,7 +262,7 @@ async function main(): Promise<void> {
     console.log('## Processed Files');
     const files = Object.entries(state.lastRun.memoryFiles);
     for (const [file, info] of files.slice(0, 10)) {
-      console.log(`  - ${file} (line ${info.line})`);
+      console.log(`  - ${file} (hash: ${info.contentHash?.slice(0, 8) ?? 'n/a'})`);
     }
     if (files.length > 10) {
       console.log(`  ... and ${files.length - 10} more`);
@@ -326,7 +326,7 @@ export async function run(args: string[]): Promise<{
   }
 }
 
-// Run if executed directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Run if executed directly (skip in bundle — NEON_SOUL_BUNDLED is set by build-skill.mjs)
+if (!process.env['NEON_SOUL_BUNDLED'] && import.meta.url === `file://${process.argv[1]}`) {
   main().catch(console.error);
 }

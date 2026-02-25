@@ -30,6 +30,7 @@ import {
   SECTION_TYPES,
   MEMORY_CATEGORIES,
 } from './semantic-vocabulary.js';
+import { logger } from './logger.js';
 
 // Re-export requireLLM for consumers (I-1 FIX)
 export { requireLLM } from '../types/llm.js';
@@ -515,4 +516,212 @@ export async function classifyImportance(
 
   // All retries exhausted - use default
   return 'supporting';
+}
+
+// ============================================================================
+// Combined Structured Classification (reduces 3 LLM calls to 1 per signal)
+// ============================================================================
+
+/**
+ * Maximum retry attempts for structured (combined) classification.
+ * Each retry includes corrective feedback about the previous failure.
+ */
+const MAX_STRUCTURED_RETRIES = 2;
+
+/**
+ * Valid dimension values as a Set for O(1) lookup during validation.
+ */
+const VALID_DIMENSIONS = new Set<string>(SOULCRAFT_DIMENSIONS);
+
+/**
+ * Valid importance values as a Set for O(1) lookup during validation.
+ */
+const VALID_IMPORTANCE = new Set<string>(IMPORTANCE_CATEGORIES);
+
+/**
+ * Valid stance values as a Set for O(1) lookup during validation.
+ */
+const VALID_STANCE = new Set<string>(STANCE_CATEGORIES);
+
+/**
+ * Result from structured classification — all 3 fields in one call.
+ */
+export interface StructuredClassificationResult {
+  dimension: SoulCraftDimension;
+  importance: SignalImportance;
+  stance: SignalStance;
+}
+
+/**
+ * Build the structured classification prompt.
+ * Requests all 3 fields (dimension, importance, stance) in a single JSON response.
+ *
+ * @param sanitizedText - Pre-sanitized signal text
+ * @param previousResponse - Previous invalid response for corrective feedback
+ */
+function buildStructuredClassificationPrompt(
+  sanitizedText: string,
+  previousResponse?: string
+): string {
+  const basePrompt = `Classify this identity signal across three axes. Return ONLY a JSON object with exactly these three fields, no other text.
+
+<signal>
+${sanitizedText}
+</signal>
+
+Dimension (which aspect of identity):
+- identity-core: Fundamental self-conception, who they are at their core
+- character-traits: Behavioral patterns, personality characteristics
+- voice-presence: Communication style, how they express themselves
+- honesty-framework: Truth-telling approach, transparency preferences
+- boundaries-ethics: Ethical limits, moral constraints, what they won't do
+- relationship-dynamics: Interpersonal patterns, how they relate to others
+- continuity-growth: Development trajectory, learning, evolution over time
+
+Importance (how central to identity):
+- core: Fundamental value, shapes everything
+- supporting: Evidence or example of values
+- peripheral: Context or tangential mention
+
+Stance (how the signal is presented):
+- assert: Stated as true, definite
+- deny: Stated as false, rejection
+- question: Uncertain, exploratory
+- qualify: Conditional, contextual
+- tensioning: Value conflict, internal tension
+
+Return ONLY a raw JSON object like: {"dimension":"identity-core","importance":"core","stance":"assert"}`;
+
+  if (previousResponse) {
+    return `${basePrompt}
+
+IMPORTANT: Your previous response was not valid JSON or contained invalid values. Here is what you returned:
+"${previousResponse}"
+
+You MUST return ONLY a raw JSON object (no markdown, no code blocks, no explanation) with these exact fields:
+- "dimension": one of [identity-core, character-traits, voice-presence, honesty-framework, boundaries-ethics, relationship-dynamics, continuity-growth]
+- "importance": one of [core, supporting, peripheral]
+- "stance": one of [assert, deny, question, qualify, tensioning]`;
+  }
+
+  return basePrompt;
+}
+
+/**
+ * Parse and validate a structured classification response.
+ * Extracts JSON from the LLM response, handling common formatting issues
+ * (markdown code blocks, leading text, trailing text).
+ *
+ * @param text - Raw LLM response text
+ * @returns Validated result or null if parsing/validation failed
+ */
+export function parseStructuredClassification(
+  text: string
+): StructuredClassificationResult | null {
+  if (!text || text.trim().length === 0) return null;
+
+  let jsonStr = text.trim();
+
+  // Strip markdown code blocks if present
+  const codeBlockMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (codeBlockMatch) {
+    jsonStr = (codeBlockMatch[1] ?? '').trim();
+  }
+
+  // Try to find JSON object in the response (handle leading/trailing text)
+  const jsonMatch = jsonStr.match(/\{[^{}]*\}/);
+  if (jsonMatch) {
+    jsonStr = jsonMatch[0];
+  }
+
+  try {
+    const parsed = JSON.parse(jsonStr);
+
+    // Validate all 3 fields
+    if (typeof parsed !== 'object' || parsed === null) return null;
+
+    const dimension = String(parsed.dimension ?? '');
+    const importance = String(parsed.importance ?? '');
+    const stance = String(parsed.stance ?? '');
+
+    if (!VALID_DIMENSIONS.has(dimension)) return null;
+    if (!VALID_IMPORTANCE.has(importance)) return null;
+    if (!VALID_STANCE.has(stance)) return null;
+
+    return {
+      dimension: dimension as SoulCraftDimension,
+      importance: importance as SignalImportance,
+      stance: stance as SignalStance,
+    };
+  } catch {
+    // JSON parse failed
+    return null;
+  }
+}
+
+/**
+ * Classify a signal's dimension, importance, and stance in a single LLM call.
+ *
+ * Uses a 3-level failsafe cascade:
+ *   Level 1: Combined generate() call → parse JSON → validate all 3 fields
+ *   Level 2: Retry 1-2 times with corrective feedback about JSON format
+ *   Level 3: Fall back to 3 individual classify() calls (guaranteed to work)
+ *
+ * This reduces per-signal classification from 3 LLM calls to 1 (happy path),
+ * with graceful degradation if the LLM struggles with JSON output.
+ *
+ * @param llm - LLM provider (required)
+ * @param signalText - The signal text to classify
+ * @returns Classification result with dimension, importance, and stance
+ * @throws LLMRequiredError if llm is null/undefined
+ */
+export async function classifySignalStructured(
+  llm: LLMProvider | null | undefined,
+  signalText: string
+): Promise<StructuredClassificationResult> {
+  requireLLM(llm, 'classifySignalStructured');
+
+  const sanitizedText = sanitizeForPrompt(signalText);
+  let previousResponse: string | undefined;
+
+  // Level 1 & 2: Try combined call with retries
+  for (let attempt = 0; attempt <= MAX_STRUCTURED_RETRIES; attempt++) {
+    try {
+      const prompt = buildStructuredClassificationPrompt(sanitizedText, previousResponse);
+      const result = await llm.generate(prompt);
+      const parsed = parseStructuredClassification(result.text);
+
+      if (parsed) {
+        logger.debug('[structured-classify] Combined call succeeded', {
+          attempt: attempt + 1,
+          dimension: parsed.dimension,
+          importance: parsed.importance,
+          stance: parsed.stance,
+        });
+        return parsed;
+      }
+
+      // Store truncated response for corrective feedback
+      previousResponse = result.text?.slice(0, 100) ?? 'empty response';
+      logger.debug(`[structured-classify] Attempt ${attempt + 1} failed, invalid response`, {
+        response: previousResponse,
+      });
+    } catch (error) {
+      previousResponse = error instanceof Error ? error.message.slice(0, 100) : 'unknown error';
+      logger.debug(`[structured-classify] Attempt ${attempt + 1} threw error`, {
+        error: previousResponse,
+      });
+    }
+  }
+
+  // Level 3: Fall back to individual classify calls (guaranteed to produce valid results)
+  logger.debug('[structured-classify] All combined attempts failed, falling back to individual calls');
+
+  const [dimension, stance, importance] = await Promise.all([
+    classifyDimension(llm, signalText),
+    classifyStance(llm, signalText),
+    classifyImportance(llm, signalText),
+  ]);
+
+  return { dimension, importance, stance };
 }

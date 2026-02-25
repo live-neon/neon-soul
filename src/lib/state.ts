@@ -8,9 +8,19 @@ import { resolve, dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
 export interface MemoryFileState {
-  file: string;
-  line: number;
+  /** Content hash for change detection */
+  contentHash: string;
+  /** When this file was last processed */
   processedAt: string;
+}
+
+export interface SessionFileState {
+  /** Number of lines processed in this session file */
+  lineCount: number;
+  /** Number of messages processed in this session file */
+  messageCount: number;
+  /** When this session was last processed */
+  lastProcessedAt: string;
 }
 
 export interface SynthesisState {
@@ -20,6 +30,17 @@ export interface SynthesisState {
     soulVersion: string; // Hash of last generated SOUL.md
     // IM-4 FIX: Track content size at last run for delta comparison
     contentSize: number;
+  };
+  /** Track processed session files for incremental ingestion */
+  processedSessions: Record<string, SessionFileState>;
+  /** Cache metadata for reflective synthesis (principle store rehydration) */
+  reflectionCache?: {
+    /** Signal IDs that have been processed through the principle store */
+    processedSignalIds: string[];
+    /** Model used when building the cache (invalidate if changed) */
+    model: string;
+    /** Similarity threshold used (invalidate if changed) */
+    principleThreshold: number;
   };
   metrics: {
     totalSignalsProcessed: number;
@@ -35,6 +56,7 @@ const DEFAULT_STATE: SynthesisState = {
     soulVersion: '',
     contentSize: 0,
   },
+  processedSessions: {},
   metrics: {
     totalSignalsProcessed: 0,
     totalPrinciplesGenerated: 0,
@@ -56,7 +78,12 @@ export function loadState(workspacePath: string): SynthesisState {
   const statePath = getStatePath(workspacePath);
 
   if (!existsSync(statePath)) {
-    return { ...DEFAULT_STATE };
+    // Deep copy to prevent mutation of DEFAULT_STATE shared references
+    return {
+      lastRun: { ...DEFAULT_STATE.lastRun, memoryFiles: {} },
+      processedSessions: {},
+      metrics: { ...DEFAULT_STATE.metrics },
+    };
   }
 
   try {
@@ -69,6 +96,8 @@ export function loadState(workspacePath: string): SynthesisState {
         ...DEFAULT_STATE.lastRun,
         ...parsed.lastRun,
       },
+      processedSessions: parsed.processedSessions ?? {},
+      ...(parsed.reflectionCache && { reflectionCache: parsed.reflectionCache }),
       metrics: {
         ...DEFAULT_STATE.metrics,
         ...parsed.metrics,
@@ -99,6 +128,18 @@ export function saveState(
   const tempPath = resolve(stateDir, `.tmp-state-${randomUUID()}`);
   writeFileSync(tempPath, JSON.stringify(state, null, 2), 'utf-8');
   renameSync(tempPath, statePath);
+}
+
+/**
+ * Clear all synthesis state (for --reset).
+ * Resets processedSessions, memoryFiles, and metrics to defaults.
+ */
+export function clearState(workspacePath: string): void {
+  saveState(workspacePath, {
+    lastRun: { ...DEFAULT_STATE.lastRun },
+    processedSessions: {},
+    metrics: { ...DEFAULT_STATE.metrics },
+  });
 }
 
 /**

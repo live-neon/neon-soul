@@ -90,6 +90,8 @@ export interface PrincipleStore {
    * These are signals where bestSimilarityToExisting < threshold.
    */
   getOrphanedSignals(): OrphanedSignal[];
+  /** Get all processed signal IDs (for persisting cache state) */
+  getProcessedSignalIds(): string[];
 }
 
 export interface AddSignalResult {
@@ -136,22 +138,46 @@ function generatePrincipleId(): string {
 }
 
 /**
+ * Initial state for rehydrating a principle store from a previous run.
+ * Allows skipping already-processed signals via the dedup check.
+ */
+export interface PrincipleStoreInitialState {
+  /** Principles from a previous run to seed the store */
+  principles: Principle[];
+  /** Signal IDs already processed (will be skipped via dedup check) */
+  processedSignalIds: string[];
+}
+
+/**
  * Create a new principle store.
  *
  * @param llm - LLM provider for semantic dimension classification and matching
  * @param similarityThreshold - Threshold for principle matching (default 0.7 = "medium" LLM confidence)
+ * @param initialState - Optional state from a previous run for cache rehydration
  * @see docs/issues/2026-02-10-generalized-signal-threshold-gap.md
  * @see docs/plans/2026-02-12-llm-based-similarity.md (Stage 4)
  */
 export function createPrincipleStore(
   llm: LLMProvider,
-  initialThreshold: number = DEFAULT_MATCH_THRESHOLD
+  initialThreshold: number = DEFAULT_MATCH_THRESHOLD,
+  initialState?: PrincipleStoreInitialState
 ): PrincipleStore {
   const principles = new Map<string, Principle>();
   let similarityThreshold = initialThreshold;
 
   // Stage 1b: Track processed signal IDs to prevent duplicates
   const processedSignalIds = new Set<string>();
+
+  // Rehydrate from previous run if provided
+  if (initialState) {
+    for (const principle of initialState.principles) {
+      principles.set(principle.id, principle);
+    }
+    for (const signalId of initialState.processedSignalIds) {
+      processedSignalIds.add(signalId);
+    }
+    logger.info(`[principle-store] Rehydrated: ${principles.size} principles, ${processedSignalIds.size} processed signals`);
+  }
 
   // PBD Stage 6: Track orphaned signals (didn't cluster to existing principle)
   const orphanedSignals: OrphanedSignal[] = [];
@@ -528,6 +554,10 @@ export function createPrincipleStore(
     return [...orphanedSignals];
   }
 
+  function getProcessedSignalIds(): string[] {
+    return Array.from(processedSignalIds);
+  }
+
   function getPrinciples(): Principle[] {
     return Array.from(principles.values());
   }
@@ -544,5 +574,6 @@ export function createPrincipleStore(
     getPrinciplesAboveN,
     setThreshold,
     getOrphanedSignals, // PBD Stage 6
+    getProcessedSignalIds,
   };
 }

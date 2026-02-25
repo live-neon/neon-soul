@@ -21,6 +21,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "tsc --noEmit",
+    "build:skill": "node scripts/build-skill.mjs",
     "clean": "rm -rf dist",
     "vcr:record": "npx tsx scripts/record-vcr-fixtures.ts",
     "vcr:analyze": "npx tsx scripts/analyze-clustering.ts"
@@ -52,6 +53,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "esbuild": "^0.24.0",
     "typescript": "^5.3.0",
     "vitest": "^1.2.0"
   },

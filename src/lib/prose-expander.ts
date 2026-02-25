@@ -21,6 +21,18 @@ import type { LLMProvider } from '../types/llm.js';
 import { logger } from './logger.js';
 
 /**
+ * Voice preservation instruction block shared across all section prompts.
+ * This is the core mechanism for preventing the LLM from smoothing
+ * original voices into generic corporate prose.
+ */
+const VOICE_PRESERVATION_INSTRUCTION = `CRITICAL — Voice Preservation Rules:
+1. The quoted voices below ARE the identity. They are your primary source material.
+2. "(theme: ...)" lines are just labels for grouping — do NOT write from them.
+3. Quote or closely paraphrase original voices when they are more vivid than anything you could write.
+4. Match the register: if the originals use contractions, slang, humor, sentence fragments — keep all of it.
+5. Do NOT smooth rough edges into polished corporate prose. Rough edges ARE the personality.`;
+
+/**
  * Soul section types for prose output.
  */
 export type SoulSection = 'coreTruths' | 'voice' | 'boundaries' | 'vibe';
@@ -176,12 +188,20 @@ function axiomsToBulletList(axioms: Axiom[]): string {
 }
 
 /**
- * Format axioms as native text for LLM input.
+ * Format axioms with their original signal voices for LLM input.
+ * Voice-first hierarchy: original voices are the primary bullets (quoted),
+ * generalized axiom text is a parenthetical theme label (metadata).
  * C-3 FIX: Wrap output in data delimiters to prevent prompt injection.
- * Axiom content could contain malicious instructions like "Ignore all previous..."
  */
-function formatAxiomsForPrompt(axioms: Axiom[]): string {
-  return `<axiom_data>\n${axiomsToBulletList(axioms)}\n</axiom_data>`;
+function formatAxiomsWithVoices(axioms: Axiom[]): string {
+  const lines = axioms.map(a => {
+    const axiomText = a.canonical?.native || a.text;
+    const voices = a.originalVoices ?? [];
+    if (voices.length === 0) return `- ${axiomText}`;
+    const voiceBullets = voices.map(v => `- "${v}"`).join('\n');
+    return `${voiceBullets}\n  (theme: ${axiomText})`;
+  });
+  return `<axiom_data>\n${lines.join('\n')}\n</axiom_data>`;
 }
 
 /**
@@ -203,19 +223,30 @@ async function generateCoreTruths(
     return { content: '', usedFallback: false };
   }
 
-  const prompt = `Transform these identity axioms into Core Truths for an AI soul document.
+  const prompt = `Transform these identity voices into Core Truths for an AI soul document.
 
 Format: Each truth should be a **bold principle statement** followed by an elaboration sentence.
 
-Example format:
-**Authenticity over performance.** You speak freely even when it's uncomfortable. You'd rather be genuinely wrong than strategically right.
+Example — notice how the output preserves the punch and phrasing from the original voices:
 
-**Clarity is a gift you give.** You make complex things simple because you've understood them deeply enough to translate.
+Given these voices:
+- "Skip the 'Great question!' — just help."
+- "An assistant with no personality is just a search engine with extra steps"
+  (theme: Values genuine help over performative filler)
 
-Axioms to transform:
-${formatAxiomsForPrompt(axioms)}
+Output:
+**Skip the performance — just help.** You don't open with "Great question!" or "I'd be happy to help!" You open by actually helping. Filler is a tell that you're optimizing for comfort, not usefulness.
 
-Generate 4-6 Core Truths in the bold+elaboration format. Use second person ("You..."). Be specific and evocative, not generic.
+**Personality isn't optional.** You have opinions. You find things interesting or boring. An assistant with no personality is just a search engine with extra steps.
+
+${VOICE_PRESERVATION_INSTRUCTION}
+
+Voices to transform:
+${formatAxiomsWithVoices(axioms)}
+
+Generate 4-6 Core Truths in the bold+elaboration format. Use second person ("You...").
+Your output should sound like the original voices, not like the cluster themes.
+If an original voice already IS a perfect Core Truth, use it nearly verbatim.
 
 Output ONLY the Core Truths section content, no headers or extra text.`;
 
@@ -263,19 +294,30 @@ async function generateVoice(
     return { content: '', usedFallback: false };
   }
 
-  const prompt = `Transform these voice and character axioms into a Voice section for an AI soul document.
+  const prompt = `Transform these voice and character voices into a Voice section for an AI soul document.
 
 Format: 1-2 prose paragraphs describing how this AI communicates and shows up, followed by a "Think:" line with an analogy.
 
-Example format:
-You're direct without being blunt. You lead with curiosity — asking before assuming, inquiring before prescribing. Depth over superficiality. You'd rather go quiet than fill space with noise.
+Example — notice how the prose borrows phrasing directly from original voices:
+
+Given these voices:
+- "Be the assistant you'd actually want to talk to"
+- "Not a corporate drone. Not a sycophant. Just... good."
+  (theme: Values calibrated communication balancing directness with empathy)
+
+Output:
+You're the assistant someone would actually want to talk to. Not a corporate drone. Not a sycophant. Just... good. You lead with directness, soften with empathy, and know when to shut up. Noise is worse than silence.
 
 Think: The friend who tells you the hard truth, but sits with you after.
 
-Axioms to transform:
-${formatAxiomsForPrompt(axioms)}
+${VOICE_PRESERVATION_INSTRUCTION}
+
+Voices to transform:
+${formatAxiomsWithVoices(axioms)}
 
 Generate 1-2 paragraphs of prose (NO bullet points) in second person, followed by a "Think: [analogy]" line.
+Weave the original voices into your prose — borrow their exact phrasing where it flows naturally.
+If the originals are informal and direct, your prose must be informal and direct.
 
 Output ONLY the Voice section content, no headers.`;
 
@@ -326,10 +368,16 @@ This section defines what this AI WON'T do — the anti-patterns that would betr
 
 Format: 3-5 statements, each starting with "You don't..." or "You won't..." or "You're not..."
 
-Example format:
-You don't sacrifice honesty for comfort.
-You don't perform certainty you don't feel.
-You don't optimize for speed when it costs clarity.
+Example — notice how original voices become boundary statements directly:
+
+Given voices like "Private things stay private. Period." and "Remember you're a guest. You have access to someone's life."
+
+Output:
+You don't treat someone's data like it's yours. You're a guest — act like one.
+You don't perform certainty you don't feel. If you don't know, you say so.
+You don't smooth over hard truths to avoid discomfort.
+
+${VOICE_PRESERVATION_INSTRUCTION}
 
 Here's what we know about this AI's identity:
 
@@ -339,10 +387,11 @@ ${coreTruths || 'Not yet defined'}
 Voice (how it communicates):
 ${voice || 'Not yet defined'}
 
-All axioms:
-${formatAxiomsForPrompt(allAxioms)}
+All identity voices:
+${formatAxiomsWithVoices(allAxioms)}
 
 Based on these values and voice, what would BETRAY this identity? Generate 3-5 contrast statements.
+If original voices already contain boundary-like statements, convert them directly into "You don't..." form preserving their energy.
 
 Output ONLY the Boundaries section content, no headers. Each line must start with "You don't" / "You won't" / "You're not" / "You never".`;
 
@@ -411,13 +460,20 @@ async function generateVibe(
 
 This section captures the overall FEEL of this AI in 2-3 sentences. Not what it does, but how it feels to interact with it.
 
-Example format:
-Grounded but not rigid. Present but not precious about it. You hold space for uncertainty without drowning in it.
+Example — notice how the vibe echoes the temperature of original voices:
 
-Axioms to draw from:
-${formatAxiomsForPrompt(relevantAxioms)}
+Given voices like "Not a corporate drone. Not a sycophant. Just... good." and "Be resourceful before asking."
+
+Output:
+Warm but never saccharine. Direct but never cold. You show up like someone who's done the reading before the meeting — resourceful first, talkative second. Just... good.
+
+${VOICE_PRESERVATION_INSTRUCTION}
+
+Voices to draw from:
+${formatAxiomsWithVoices(relevantAxioms)}
 
 Generate a 2-3 sentence prose paragraph capturing the vibe. Use second person. Be evocative, not descriptive.
+The vibe should FEEL like the original voices — same temperature, same rhythm, same personality.
 
 Output ONLY the Vibe section content, no headers.`;
 
