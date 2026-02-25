@@ -102,34 +102,30 @@ npm run test:watch                 # Watch mode
 # Run from neon-soul project root:
 
 # Incremental run (default - only processes new/changed sources):
-cd /Users/neonsoul/Desktop/projects/neon-soul && \
-  OLLAMA_MODEL=gpt-oss:120b \
-  NEON_SOUL_LLM_TELEMETRY=1 \
-  npx tsx src/cli.ts synthesize \
-  --memory-path ~/.openclaw/workspace/memory \
-  --output-path ~/.openclaw/workspace/SOUL.md
+OLLAMA_MODEL=gpt-oss:120b \
+NEON_SOUL_LLM_TELEMETRY=1 \
+npx tsx src/cli.ts synthesize \
+  --memory-path ~/.claude/workspace/memory \
+  --output-path ~/.claude/workspace/SOUL.md
 
 # Reset run (clear everything, re-extract from scratch):
-cd /Users/neonsoul/Desktop/projects/neon-soul && \
-  OLLAMA_MODEL=gpt-oss:120b \
-  NEON_SOUL_LLM_TELEMETRY=1 \
-  npx tsx src/cli.ts synthesize --reset \
-  --memory-path ~/.openclaw/workspace/memory \
-  --output-path ~/.openclaw/workspace/SOUL.md
+OLLAMA_MODEL=gpt-oss:120b \
+NEON_SOUL_LLM_TELEMETRY=1 \
+npx tsx src/cli.ts synthesize --reset \
+  --memory-path ~/.claude/workspace/memory \
+  --output-path ~/.claude/workspace/SOUL.md
 
 # Force run (run even if no new sources, still incremental):
-cd /Users/neonsoul/Desktop/projects/neon-soul && \
-  OLLAMA_MODEL=gpt-oss:120b \
-  npx tsx src/cli.ts synthesize --force \
-  --memory-path ~/.openclaw/workspace/memory \
-  --output-path ~/.openclaw/workspace/SOUL.md
+OLLAMA_MODEL=gpt-oss:120b \
+npx tsx src/cli.ts synthesize --force \
+  --memory-path ~/.claude/workspace/memory \
+  --output-path ~/.claude/workspace/SOUL.md
 
 # Dry run (preview without writing):
-cd /Users/neonsoul/Desktop/projects/neon-soul && \
-  OLLAMA_MODEL=gpt-oss:120b \
-  npx tsx src/cli.ts synthesize --dry-run \
-  --memory-path ~/.openclaw/workspace/memory \
-  --output-path ~/.openclaw/workspace/SOUL.md
+OLLAMA_MODEL=gpt-oss:120b \
+npx tsx src/cli.ts synthesize --dry-run \
+  --memory-path ~/.claude/workspace/memory \
+  --output-path ~/.claude/workspace/SOUL.md
 ```
 
 ---
