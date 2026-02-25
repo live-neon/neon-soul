@@ -640,11 +640,13 @@ async function extractSignals(
 
     for (const session of sessionsToProcess) {
       const content = sessionToMemoryContent(session);
-      const sessionSignals = await extractSignalsFromContent(llm, content, {
-        file: session.path,
-        category: 'session',
-      });
-      newSignals.push(...sessionSignals);
+      if (content.trim().length > 0) {
+        const sessionSignals = await extractSignalsFromContent(llm, content, {
+          file: session.path,
+          category: 'session',
+        });
+        newSignals.push(...sessionSignals);
+      }
     }
   }
 

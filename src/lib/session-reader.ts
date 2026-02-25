@@ -221,11 +221,15 @@ const MAX_MESSAGE_CHARS = 500;
  * 1. Cron error/info: "System: [2026-02-23 04:13:37 PST] Cron (error): ..."
  * 2. Cron maintenance tasks: "[cron:UUID task-name] Run the neon-agent ..."
  * 3. Session startup: "A new session was started via /new or /reset. ..."
+ * 4. Cron completion notifications: "[Tue 2026-02-24 16:40 PST] [System Message] ..."
+ * 5. Exec completed: "System: [2026-02-24 01:11:20 PST] Exec completed ..."
+ * 6. System messages with timestamps: "System: [date time TZ] ..." (general catch-all)
  */
 const SYSTEM_MESSAGE_PATTERNS: RegExp[] = [
-  /^System: \[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} [A-Z]{3,4}\] Cron \(/,
+  /^System: \[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} [A-Z]{3,4}\]/,
   /^\[cron:[a-f0-9-]+ [\w-]+\]/,
   /^A new session was started via \/new or \/reset\./,
+  /^\[.+\] \[System Message\]/,
 ];
 
 /**
@@ -338,6 +342,11 @@ export function sessionToMemoryContent(
       const extracted = stripConversationMetadata(messageText);
       if (extracted !== null) {
         messageText = extracted;
+        // Re-check: the inner text might also be a system message
+        if (isSystemMessage(messageText)) {
+          skipNextAssistant = true;
+          continue;
+        }
       } else if (messageText.startsWith(CONVERSATION_META_PREFIX)) {
         // Metadata wrapper with no extractable text — skip
         skipNextAssistant = true;

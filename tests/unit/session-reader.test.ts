@@ -525,6 +525,27 @@ describe('isSystemMessage', () => {
     )).toBe(true);
   });
 
+  it('matches cron completion notifications ([System Message] format)', () => {
+    expect(isSystemMessage(
+      '[Tue 2026-02-24 16:40 PST] [System Message] [sessionId: d12c5587] A cron job "neon-soul-synthesis" just completed successfully.'
+    )).toBe(true);
+  });
+
+  it('matches Exec completed messages', () => {
+    expect(isSystemMessage(
+      'System: [2026-02-24 01:11:20 PST] Exec completed (clear-me, code 0) :: some output here'
+    )).toBe(true);
+  });
+
+  it('matches general System: [date] messages', () => {
+    expect(isSystemMessage(
+      'System: [2026-02-24 15:56:49 PST] Cron (error): All good—SOUL.md stayed the same'
+    )).toBe(true);
+    expect(isSystemMessage(
+      'System: [2026-02-24 17:12:18 PST] Cron (error): Your SOUL doc has been refreshed again'
+    )).toBe(true);
+  });
+
   it('does NOT match normal user text', () => {
     expect(isSystemMessage('I prefer concise responses')).toBe(false);
     expect(isSystemMessage('What do you value most?')).toBe(false);
