@@ -478,6 +478,10 @@ export async function compressPrinciplesWithCascade(
   const modelId = llm.getModelId?.() ?? 'unknown';
   const result = await compressPrinciples(llm, principles, effectiveThreshold, modelId);
 
+  // CR-9 FIX: Track centrality-exempted axioms separately to protect them from pruning.
+  // These are identity-defining even with low N-count and should not be pruned.
+  const centralityExemptAxioms: Axiom[] = [];
+
   // Centrality exemption: promote defining principles even if below threshold
   // A principle with centrality=defining has 50%+ core-importance signals — it's
   // identity-defining even if it only appeared once.
@@ -491,19 +495,25 @@ export async function compressPrinciplesWithCascade(
       !promotedIds.has(p.id)
     );
     for (const p of exemptPrinciples) {
-      result.axioms.push(await synthesizeAxiom(llm, p, DEFAULT_PROMOTION_CRITERIA, modelId));
+      const exemptAxiom = await synthesizeAxiom(llm, p, DEFAULT_PROMOTION_CRITERIA, modelId);
+      centralityExemptAxioms.push(exemptAxiom);
       logger.info(`[compressor] Centrality exemption: promoted "${p.text.slice(0, 60)}..." (N=${p.n_count}, centrality=defining)`);
     }
   }
 
   // Enforce cognitive load cap: keep top N axioms by N-count and tier
-  let finalAxioms = result.axioms;
+  // CR-9 FIX: Apply cap only to regular axioms, then add centrality-exempt axioms.
+  // This ensures centrality-exempted axioms are never pruned.
+  let regularAxioms = result.axioms;
   let prunedAxioms: Axiom[] = [];
 
-  if (finalAxioms.length > COGNITIVE_LOAD_CAP) {
+  // Calculate how many regular axioms we can keep (cap minus exempt)
+  const regularCap = Math.max(0, COGNITIVE_LOAD_CAP - centralityExemptAxioms.length);
+
+  if (regularAxioms.length > regularCap) {
     // Sort by N-count descending, then by tier (core > domain > emerging)
     const tierOrder: Record<AxiomTier, number> = { core: 0, domain: 1, emerging: 2 };
-    const sorted = [...finalAxioms].sort((a, b) => {
+    const sorted = [...regularAxioms].sort((a, b) => {
       // C-1 FIX: Access actual n_count from source principle, not array length
       // The principles array always has length 1 (synthesizeAxiom creates single-principle provenance)
       const aNCount = a.derived_from?.principles?.[0]?.n_count ?? 1;
@@ -513,11 +523,14 @@ export async function compressPrinciplesWithCascade(
       return tierOrder[a.tier] - tierOrder[b.tier];
     });
 
-    finalAxioms = sorted.slice(0, COGNITIVE_LOAD_CAP);
-    prunedAxioms = sorted.slice(COGNITIVE_LOAD_CAP);
+    regularAxioms = sorted.slice(0, regularCap);
+    prunedAxioms = sorted.slice(regularCap);
 
     logger.info(`[compressor] Pruned ${prunedAxioms.length} axioms to meet cognitive load cap (${COGNITIVE_LOAD_CAP})`);
   }
+
+  // Combine regular and centrality-exempt axioms
+  let finalAxioms = [...regularAxioms, ...centralityExemptAxioms];
 
   // PBD Stage 5: Detect tensions between axioms
   const tensions = await detectTensions(llm, finalAxioms, modelId);

@@ -103,9 +103,22 @@ export function loadState(workspacePath: string): SynthesisState {
         ...parsed.metrics,
       },
     };
-  } catch {
-    // Corrupted state file - return defaults
-    return { ...DEFAULT_STATE };
+  } catch (error) {
+    // CR-4 FIX: Don't silently reset on JSON corruption - this loses all incremental history.
+    // Backup the corrupt file and throw to force manual intervention.
+    if (error instanceof SyntaxError) {
+      const backupPath = `${statePath}.corrupt.${Date.now()}`;
+      try {
+        renameSync(statePath, backupPath);
+        console.error(`CRITICAL: State file corrupted. Backup saved to: ${backupPath}`);
+        console.error('Manual intervention required. Run with --reset to start fresh, or restore from backup.');
+      } catch {
+        console.error(`CRITICAL: State file corrupted and backup failed. Path: ${statePath}`);
+      }
+      throw new Error(`State file corrupted - manual intervention required. Backup: ${backupPath}`);
+    }
+    // For other errors (permissions, etc.), rethrow
+    throw error;
   }
 }
 
