@@ -1,11 +1,9 @@
 ---
 name: NEON-SOUL
 version: 0.3.1
-description: Self-learning soul synthesis for AI agents. Extracts identity from memory and session logs, promotes recurring patterns to axioms (N>=3), generates SOUL.md with full provenance tracking. Bundled processing engine.
+description: Automated soul synthesis for AI agents. Extracts identity from memory and session logs, promotes recurring patterns to axioms (N>=3), generates SOUL.md with full provenance tracking. Bundled processing engine — no manual Q&A needed.
 homepage: https://liveneon.ai
 user-invocable: true
-disableModelInvocation: false
-disable-model-invocation: false
 emoji: "\U0001F52E"
 metadata:
   openclaw:
@@ -29,7 +27,7 @@ tags:
 
 # NEON-SOUL
 
-Soul synthesis for AI agents. Reads memory files and session logs, finds recurring patterns, generates SOUL.md with provenance tracking.
+Automated soul synthesis for AI agents. Reads memory files and session logs, finds recurring patterns, generates SOUL.md with provenance tracking. No questionnaires, no templates — identity emerges from real conversations.
 
 **Requirements:** Node.js 22+, Ollama running locally (`ollama serve`).
 
@@ -49,7 +47,12 @@ Synthesis is **incremental by default** — only new/changed memory files and se
 
 The script auto-detects Ollama, reads memory files and session logs, extracts signals, promotes axioms, and generates SOUL.md. It outputs JSON.
 
-Report the JSON result to the user when done.
+**Reporting results:** Don't dump raw JSON. Present a brief, conversational summary:
+- If new axioms emerged or counts changed: highlight what grew (e.g. "3 new signals crystallized into axioms — your soul is deepening")
+- If nothing changed: a short one-liner is fine (e.g. "Soul is stable, no new patterns detected")
+- If it failed: explain clearly what went wrong and suggest a fix
+- Include key numbers naturally (axiom count, signal count) but don't list every field
+- Keep the tone reflective and warm — this is about the user's identity evolving, not a build log
 
 **Options:**
 - `--reset` — Clear all synthesis data and re-extract from scratch
