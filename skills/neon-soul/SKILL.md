@@ -1,6 +1,6 @@
 ---
 name: NEON-SOUL
-version: 0.4.3
+version: 0.4.4
 description: Automated soul synthesis for AI agents. Extracts identity from memory files, promotes recurring patterns to axioms (N>=3), generates SOUL.md with full provenance tracking. Bundled processing engine — no manual Q&A needed.
 homepage: https://liveneon.ai
 user-invocable: true
