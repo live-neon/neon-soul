@@ -56,7 +56,9 @@ NEON-SOUL is an OpenClaw skill that provides soul synthesis with semantic compre
 | `provenance.ts` | Audit trail construction | `createSignalSource`, `traceToSource` |
 | `signal-extractor.ts` | LLM-based signal extraction | `extractSignals`, `ExtractionConfig` |
 | `signal-generalizer.ts` | LLM-based signal generalization | `generalizeSignal`, `generalizeSignals`, `PROMPT_VERSION` |
-| `state.ts` | Incremental processing state | `loadState`, `saveState`, `shouldRunSynthesis` |
+| `state.ts` | Incremental processing state | `loadState`, `saveState`, `clearState`, `shouldRunSynthesis` |
+| `persistence.ts` | Synthesis data persistence | `saveSignals`, `loadSignals`, `saveSynthesisData`, `clearSynthesisData` |
+| `session-reader.ts` | OpenClaw session log parsing | `readSessionFiles`, `sessionToMemoryContent`, `getSessionMessageCount` |
 | `backup.ts` | Backup and rollback | `backupFile`, `rollback`, `commitSoulUpdate` |
 | `template-extractor.ts` | Extract signals from SOUL.md templates | `extractFromTemplate`, `extractFromTemplates` |
 | `semantic-classifier.ts` | LLM-based semantic classification | `classifyDimension`, `classifyStance`, `classifyImportance` |
@@ -90,18 +92,18 @@ NEON-SOUL is an OpenClaw skill that provides soul synthesis with semantic compre
 ## Data Flow
 
 ```
-Memory Files (OpenClaw workspace)
+Memory Files + Session Logs (OpenClaw workspace)
        │
        ▼
 ┌──────────────────────┐
-│  Content Threshold   │  (≥2000 chars of new content)
-│  Check (state.ts)    │
+│  Incremental Diff    │  Compare content hashes and session message counts
+│  (state.ts)          │  against state.json to find new/changed sources
 └──────────────────────┘
        │
        ▼
 ┌──────────────────────┐
-│  Signal Extraction   │  LLM extracts preference/correction/value signals
-│  (signal-extractor)  │  Each signal tagged with dimension, stance, importance
+│  Signal Extraction   │  LLM extracts signals ONLY from new/changed sources
+│  (signal-extractor)  │  Merges with existing signals (stale signals removed)
 └──────────────────────┘
        │
        ▼
@@ -310,7 +312,11 @@ This distinguishes "rare but core" from "frequent but peripheral":
 - High N-count + low centrality = commonly mentioned but not central
 - Low N-count + high centrality = rare but fundamental
 
-Implementation: `src/lib/principle-store.ts` (`computeCentrality`)
+Centrality is used in two ways:
+1. **Descriptive**: Stored on each principle for audit/analysis
+2. **Promotion**: Principles with `centrality === 'defining'` bypass the N-threshold cascade in compression and are promoted as `emerging` tier axioms (centrality exemption)
+
+Implementation: `src/lib/principle-store.ts` (`computeCentrality`), `src/lib/compressor.ts` (`compressPrinciplesWithCascade`)
 
 ### Artifact Provenance (SSEM Model)
 
@@ -349,25 +355,50 @@ Axioms failing anti-echo-chamber are marked with:
 
 Implementation: `src/lib/compressor.ts` (`canPromote`, `getProvenanceDiversity`)
 
-### Cycle Management
+### Incremental Synthesis
 
-Synthesis supports incremental evolution through cycle detection:
+Synthesis is incremental by default — only new/changed content triggers signal extraction:
+
+| Mode | Flag | Behavior |
+|------|------|----------|
+| **Incremental** | *(default)* | Diff memory file hashes and session message counts against `state.json`. Extract signals only from new/changed sources. Merge with existing signals. Skip if nothing changed. |
+| **Force** | `--force` | Run even if no new sources (still incremental extraction). |
+| **Reset** | `--reset` | Clear `signals.json`, `principles.json`, `axioms.json`, and `state.json`. Re-extract everything from scratch. |
+| **Include SOUL** | `--include-soul` | Include existing SOUL.md as input (off by default, prevents feedback loop). |
+
+**Incremental data flow**:
+```
+state.json ──→ which files already processed?
+signals.json ──→ load existing signals
+memory/ ──→ walk, diff content hashes → find new/modified files
+sessions/ ──→ diff message counts → find sessions with new messages
+
+Extract signals from new/changed sources only
+Remove stale signals from modified/deleted files
+Merge: existing + new = full signal set
+
+Reflective synthesis on full signal set (recompute principles + axioms)
+Save everything + update state tracking
+```
+
+**State tracking** (`state.json`):
+- `lastRun.memoryFiles`: content hash per memory file for change detection
+- `processedSessions`: line count and message count per session file
+- Atomic writes (temp + rename) prevent corruption
+
+**SOUL.md feedback loop prevention**: SOUL.md is excluded from input by default because it's a derivative of the pipeline's own output. Re-ingesting it creates circular signal extraction that inflates LLM request counts. Use `--include-soul` only when bootstrapping from a hand-crafted file.
+
+Implementation: `src/lib/pipeline.ts` (collectSources, extractSignals, validateOutput stages), `src/lib/state.ts`, `src/lib/persistence.ts`
+
+### Legacy Cycle Management
+
+The cycle manager (`src/lib/cycle-manager.ts`) provides additional cycle detection:
 
 | Mode | Trigger | Behavior |
 |------|---------|----------|
 | **initial** | No existing soul | Full synthesis from scratch |
 | **incremental** | Minor changes (<30% new principles) | Merge new into existing |
 | **full-resynthesis** | Major changes (>30% new OR ≥2 contradictions) | Complete re-synthesis |
-
-**Full resynthesis triggers**:
-- >30% new principles (configurable)
-- ≥2 existing axioms contradicted by new evidence
-- `--force-resynthesis` flag
-
-**State persistence**:
-- Soul state stored in `.neon-soul/soul-state.json`
-- Atomic writes prevent corruption
-- PID lockfile prevents concurrent synthesis
 
 Implementation: `src/lib/cycle-manager.ts` (`decideCycleMode`, `loadSoul`, `saveSoul`)
 
@@ -382,22 +413,28 @@ Generalization trades authentic voice for clustering efficiency. The solution: d
 User says: "Prioritize honesty over comfort" — that's *their* fingerprint.
 Generalized: "Values truthfulness over social comfort" — *our* abstraction.
 
-### Resolution
+### Resolution (Implemented)
 
 1. **Cluster on generalized embeddings** — Technical accuracy for matching
-2. **Display original phrasings** — Authentic voice in SOUL.md
-3. **Select most representative original** — Best exemplar as cluster label
+2. **Thread original voices to axioms** — `originalVoices: string[]` on each `Axiom` carries the raw signal texts from `principle.derived_from.signals[].original_text`
+3. **Pass original voices to prose expander** — `formatAxiomsWithVoices()` includes original expressions in each section prompt, instructing the LLM to preserve voice, directness, and personality
 
-### SOUL.md Display (Recommended)
+### How originalVoices Flows
 
-Show original signal that best represents cluster, with N-count:
-
-```markdown
-## Core Axioms
-
-### Honesty Framework
-- **Prioritize honesty over comfort** (N=4)
-  - Related: "tell truth", "avoid deception", "direct feedback"
+```
+principle.derived_from.signals[].original_text
+        │
+        ▼
+  compressor.ts: synthesizeAxiom()
+  extracts texts → axiom.originalVoices
+        │
+        ▼
+  prose-expander.ts: formatAxiomsWithVoices()
+  formats as "Original expressions:" per axiom
+        │
+        ▼
+  LLM prompt includes: "Draw on the original expressions —
+  preserve their voice, directness, and personality."
 ```
 
 ### Actor-Agnostic vs Personal Display
@@ -556,11 +593,14 @@ The similarity module (`llm-similarity.ts`) provides:
 
 ## Safety Patterns
 
-1. **Content Threshold**: Only run synthesis when ≥2000 chars of new memory
-2. **Backup Before Write**: Every SOUL.md modification backed up first
-3. **Git Auto-Commit**: Automatic versioning if workspace is repo
-4. **Rollback**: Restore from any backup with `/neon-soul rollback`
-5. **Output Validation**: Format checks before writing
+1. **Incremental by Default**: Only extract signals from new/changed sources. Skip if nothing changed.
+2. **SOUL.md Excluded from Input**: Prevents feedback loop where the pipeline re-ingests its own output. Use `--include-soul` to opt in for bootstrapping.
+3. **Backup Before Write**: Every SOUL.md modification backed up first
+4. **Git Auto-Commit**: Automatic versioning if workspace is repo
+5. **Rollback**: Restore from any backup with `/neon-soul rollback`
+6. **Output Validation**: Format checks before writing
+7. **Atomic Writes**: State and synthesis data use temp file + rename for consistency
+8. **`--reset` for Clean Slate**: Clears all synthesis data and state before re-extraction
 
 ---
 
@@ -580,8 +620,8 @@ NEON-SOUL runs as an OpenClaw skill:
 ```
 .neon-soul/
 ├── config.json         # Configuration
-├── state.json          # Processing state (last run, metrics)
-├── signals.json        # Extracted signals with embeddings
+├── state.json          # Incremental state (memory hashes, session counts, metrics)
+├── signals.json        # Extracted signals (persists across runs, merged incrementally)
 ├── principles.json     # Merged principles with N-counts
 ├── axioms.json         # Promoted axioms
 ├── backups/            # Timestamped backups
@@ -589,6 +629,13 @@ NEON-SOUL runs as an OpenClaw skill:
 │       └── SOUL.md
 └── SOUL.md             # Generated soul document
 ```
+
+**`state.json` tracks incremental processing**:
+- `lastRun.memoryFiles`: content hash per file (for change detection)
+- `processedSessions`: line count + message count per session (for incremental ingestion)
+- `metrics`: total signals/principles/axioms processed
+
+**`--reset` clears**: `signals.json`, `principles.json`, `axioms.json`, and resets `state.json` to defaults.
 
 *Note: Earlier documentation showed a `distilled/` subdirectory. The implementation writes directly to `.neon-soul/` root for simpler path handling.*
 
@@ -619,10 +666,18 @@ Several files exceed the 200-line MCE limit. This is acknowledged technical debt
 | `signal-extractor.ts` | 385 | Extract provenance classification to `provenance-classifier.ts` |
 | `reflection-loop.ts` | 273 | Consider extracting metrics calculation |
 
-**This file** (`ARCHITECTURE.md`) is also over budget at 600+ lines. Future split:
+**This file** (`docs/architecture/README.md`) is also over budget at 600+ lines. Future split:
 - Core overview + module reference (~200 lines)
 - `SYNTHESIS_FEATURES.md` - Detailed feature docs (~250 lines)
 - `INTEGRATION.md` - OpenClaw, config, safety (~150 lines)
 
 **Status**: Not blocking. Code is well-organized with clear function boundaries.
 **Tracking**: `docs/issues/2026-02-12-pbd-stages-13-17-twin-review-findings.md` (I-1)
+
+---
+
+## Related Documentation
+
+- **[Synthesis Philosophy](synthesis-philosophy.md)** - Design choices and limitations of the synthesis pipeline
+- **[Soul Bootstrap Proposal](../proposals/soul-bootstrap-pipeline-proposal.md)** - Authoritative design document
+- **[Issues Registry](../issues/)** - Active issues and tech debt tracking

@@ -14,7 +14,7 @@
  *   const result = await runReflectiveLoop(signals, options);
  */
 
-import { createPrincipleStore } from './principle-store.js';
+import { createPrincipleStore, type PrincipleStoreInitialState } from './principle-store.js';
 import { compressPrinciplesWithCascade, type GuardrailWarnings } from './compressor.js';
 import { generalizeSignalsWithCache } from './signal-generalizer.js';
 import type { Signal } from '../types/signal.js';
@@ -34,6 +34,12 @@ export interface ReflectiveLoopConfig {
   principleThreshold: number;
   /** Progress callback (called once after synthesis completes) */
   onComplete?: (result: ReflectiveLoopResult) => void;
+  /** Cached principles from a previous run (for store rehydration) */
+  cachedPrinciples?: Principle[];
+  /** Signal IDs already processed in a previous run (skip matching for these) */
+  cachedProcessedSignalIds?: string[];
+  /** Cached axioms from a previous run (skip compression when principles unchanged) */
+  cachedAxioms?: Axiom[];
 }
 
 /**
@@ -85,6 +91,8 @@ export interface ReflectiveLoopResult {
   echoBlockedAxioms?: number;
   /** PBD Stage 16: Promotion statistics */
   promotionStats?: PromotionStats;
+  /** All processed signal IDs (for persisting cache state) */
+  processedSignalIds?: string[];
 }
 
 /**
@@ -111,8 +119,21 @@ export async function runReflectiveLoop(
 
   logger.info(`[synthesis] Starting single-pass synthesis with ${signals.length} signals`);
 
-  // Initialize principle store
-  const store = createPrincipleStore(llm, principleThreshold);
+  // Initialize principle store (rehydrate from cache if available)
+  const { cachedPrinciples, cachedProcessedSignalIds } = mergedConfig;
+  let initialState: PrincipleStoreInitialState | undefined;
+  if (cachedPrinciples && cachedProcessedSignalIds && cachedPrinciples.length > 0) {
+    initialState = {
+      principles: cachedPrinciples,
+      processedSignalIds: cachedProcessedSignalIds,
+    };
+    const newSignalCount = signals.length - cachedProcessedSignalIds.length;
+    logger.info(
+      `[synthesis] Rehydrated store: ${cachedPrinciples.length} principles, ` +
+      `${cachedProcessedSignalIds.length} cached signals, ${Math.max(0, newSignalCount)} new to process`
+    );
+  }
+  const store = createPrincipleStore(llm, principleThreshold, initialState);
 
   // Phase 1: Generalize all signals (batch-first approach for efficiency)
   // Generalized signals cluster better because surface form variance is abstracted away.
@@ -125,6 +146,7 @@ export async function runReflectiveLoop(
 
   // Phase 2: Add generalized signals to principle store (ONCE - no iteration)
   // N-counts accumulate as generalized signals match existing principles
+  // Already-processed signals (from cache) are skipped via dedup check
   let addedCount = 0;
   let skippedCount = 0;
   for (const generalizedSignal of generalizedSignals) {
@@ -135,17 +157,37 @@ export async function runReflectiveLoop(
       addedCount++;
     }
   }
-  logger.info(`[synthesis] Added ${addedCount} signals to principle store (${skippedCount} duplicates skipped)`);
+  logger.info(`[synthesis] Added ${addedCount} signals to principle store (${skippedCount} skipped${initialState ? ', cache-rehydrated' : ''})`);
 
   // Phase 3: Get principles and compress to axioms (requires LLM for CJK/emoji mapping)
   const principles = store.getPrinciples();
   logger.info(`[synthesis] ${principles.length} principles formed`);
 
-  const compression = await compressPrinciplesWithCascade(llm, principles);
+  // Skip compression entirely if principles unchanged and cached axioms available
+  const { cachedAxioms } = mergedConfig;
+  const canSkipCompression = addedCount === 0 && cachedAxioms && cachedAxioms.length > 0;
+
+  let axioms: Axiom[];
+  let unconverged: Principle[] = [];
+  let effectiveThreshold = 3;
+  let guardrails: GuardrailWarnings = { messages: [], expansionWarning: false, cognitiveLoadWarning: false, fallbackWarning: false };
+
+  if (canSkipCompression) {
+    // Principles unchanged — reuse cached axioms (notation + tensions already computed)
+    axioms = cachedAxioms;
+    logger.info(`[synthesis] Principles unchanged, reusing ${axioms.length} cached axioms (skipping compression)`);
+  } else {
+    const compression = await compressPrinciplesWithCascade(llm, principles);
+    axioms = compression.axioms;
+    unconverged = compression.unconverged;
+    effectiveThreshold = compression.cascade.effectiveThreshold;
+    guardrails = compression.guardrails;
+  }
+
   const durationMs = Date.now() - startTime;
 
-  const compressionRatio = compression.axioms.length > 0
-    ? signals.length / compression.axioms.length
+  const compressionRatio = axioms.length > 0
+    ? signals.length / axioms.length
     : 0;
 
   // PBD Stage 16: Compute provenance distribution from signals
@@ -161,7 +203,7 @@ export async function runReflectiveLoop(
     blocked: 0,
     reasons: {},
   };
-  for (const axiom of compression.axioms) {
+  for (const axiom of axioms) {
     if (axiom.promotable) {
       promotionStats.promotable++;
     } else {
@@ -173,7 +215,7 @@ export async function runReflectiveLoop(
   const echoBlockedAxioms = promotionStats.blocked;
 
   logger.info(
-    `[synthesis] Complete: ${signals.length} signals → ${principles.length} principles → ${compression.axioms.length} axioms ` +
+    `[synthesis] Complete: ${signals.length} signals → ${principles.length} principles → ${axioms.length} axioms ` +
     `(${compressionRatio.toFixed(1)}:1 compression) in ${durationMs}ms`
   );
 
@@ -186,10 +228,10 @@ export async function runReflectiveLoop(
 
   const result: ReflectiveLoopResult = {
     principles,
-    axioms: compression.axioms,
-    unconverged: compression.unconverged,
-    effectiveThreshold: compression.cascade.effectiveThreshold,
-    guardrails: compression.guardrails,
+    axioms,
+    unconverged,
+    effectiveThreshold,
+    guardrails,
     durationMs,
     signalCount: signals.length,
     compressionRatio,
@@ -197,6 +239,8 @@ export async function runReflectiveLoop(
     provenanceDistribution,
     echoBlockedAxioms,
     promotionStats,
+    // Cache state for persistence
+    processedSignalIds: store.getProcessedSignalIds(),
   };
 
   // Call completion callback if provided

@@ -26,12 +26,18 @@ import { homedir } from 'node:os';
 // TrajectoryTracker removed - single-pass architecture doesn't need iteration tracking
 import { collectSources as collectSourcesFromWorkspace, type SourceCollection as CollectedSources } from './source-collector.js';
 import { extractSignalsFromContent } from './signal-extractor.js';
+import { sessionToMemoryContent, type SessionFile } from './session-reader.js';
 import { runReflectiveLoop } from './reflection-loop.js';
 import { generateSoul as generateSoulContent } from './soul-generator.js';
 import { backupFile, commitSoulUpdate } from './backup.js';
-import { loadState, saveState, shouldRunSynthesis } from './state.js';
-import { saveSynthesisData, writeFileAtomic } from './persistence.js';
+import { loadState, saveState, clearState } from './state.js';
+import { saveSynthesisData, loadSignals, loadPrinciples, loadAxioms, clearSynthesisData, writeFileAtomic } from './persistence.js';
+import { loadGeneralizationCache, saveGeneralizationCache, deleteGeneralizationCacheFile } from './signal-generalizer.js';
+import { loadCompressionCache, saveCompressionCache, deleteCompressionCacheFile } from './compressor.js';
+import { loadTensionCache, saveTensionCache, clearTensionCache } from './tension-detector.js';
+import type { MemoryFile } from './memory-walker.js';
 import { logger } from './logger.js';
+import { LLMTelemetry, type TelemetrySummary } from './llm-telemetry.js';
 import type { Signal, SoulCraftDimension } from '../types/signal.js';
 import type { Principle } from '../types/principle.js';
 import type { Axiom } from '../types/axiom.js';
@@ -64,6 +70,14 @@ export interface PipelineOptions {
   outputFormat?: 'prose' | 'notation';
   /** I-4 FIX: Strict mode fails pipeline on prose expansion errors instead of falling back */
   strictMode?: boolean;
+  /** Clear all synthesis data and re-extract from scratch */
+  reset?: boolean;
+  /** Include existing SOUL.md as input source (for bootstrapping from hand-crafted files) */
+  includeSoul?: boolean;
+  /** Time budget for synthesis in minutes (default: 20). Controls adaptive session extraction.
+   *  The pipeline estimates downstream LLM costs and stops reading sessions when the
+   *  remaining budget can't safely cover extraction + synthesis + generation. */
+  timeBudgetMinutes?: number;
   /** Progress callback */
   onProgress?: (stage: string, progress: number, message: string) => void;
 }
@@ -115,6 +129,23 @@ export interface PipelineContext {
   backupPath?: string;
   /** Whether changes were committed */
   committed?: boolean;
+  /** Incremental processing tracking */
+  incremental?: {
+    addedMemoryFiles: MemoryFile[];
+    modifiedMemoryFiles: MemoryFile[];
+    removedMemoryPaths: string[];
+    newSessions: SessionFile[];
+    changedSessions: Array<{ session: SessionFile; previousMessageCount: number }>;
+    existingSignalCount: number;
+    newSignalCount: number;
+    isReset: boolean;
+    /** Whether extraction stopped early due to time budget */
+    budgetExhausted?: boolean;
+    /** Number of sessions skipped due to budget constraint */
+    sessionsSkippedByBudget?: number;
+    /** Session IDs that were actually extracted (vs skipped by budget) */
+    extractedSessionIds?: Set<string>;
+  };
   /** Error if pipeline failed */
   error?: Error;
   /** Timing information */
@@ -123,6 +154,12 @@ export interface PipelineContext {
     endTime?: Date;
     stageTimes: Record<string, number>;
   };
+  /** LLM telemetry (tracks every LLM request with timing) */
+  telemetry?: LLMTelemetry;
+  /** LLM telemetry summary (included in final result) */
+  telemetrySummary?: TelemetrySummary;
+  /** Processed signal IDs from reflective synthesis (for cache persistence) */
+  reflectionProcessedSignalIds?: string[];
 }
 
 /**
@@ -137,6 +174,8 @@ export interface SourceCollection {
   userContextPath?: string;
   /** Interview response files */
   interviewFiles: string[];
+  /** Session log files */
+  sessionFiles: string[];
   /** Total source count */
   totalSources: number;
   /** Total content size (chars) */
@@ -180,6 +219,8 @@ export interface PipelineResult {
     synthesisDurationMs: number | undefined;
     effectiveThreshold: number | undefined;
   };
+  /** LLM telemetry summary (request counts, timing, per-stage breakdown) */
+  telemetry?: TelemetrySummary;
 }
 
 /**
@@ -204,12 +245,22 @@ export async function runPipeline(
     throw new LLMRequiredError('runPipeline');
   }
 
-  const mergedOptions = { ...DEFAULT_PIPELINE_OPTIONS, ...options };
+  // Wrap LLM with telemetry tracking
+  const telemetry = new LLMTelemetry(options.llm, {
+    verbose: process.env['NEON_SOUL_LLM_TELEMETRY'] === '1',
+  });
+
+  const mergedOptions = {
+    ...DEFAULT_PIPELINE_OPTIONS,
+    ...options,
+    llm: telemetry,  // Replace LLM with telemetry-wrapped version
+  };
 
   const context: PipelineContext = {
     options: mergedOptions as PipelineOptions,
     currentStage: 'init',
     skipped: false,
+    telemetry,
     timing: {
       startTime: new Date(),
       stageTimes: {},
@@ -227,6 +278,7 @@ export async function runPipeline(
       }
 
       context.currentStage = stage.name;
+      telemetry.setStage(stage.name);
       const stageStart = Date.now();
 
       context.options.onProgress?.(stage.name, 0, 'Starting...');
@@ -245,6 +297,10 @@ export async function runPipeline(
 
     context.timing.endTime = new Date();
 
+    // Capture telemetry summary
+    const telemetrySummary = telemetry.getSummary();
+    context.telemetrySummary = telemetrySummary;
+
     return {
       success: !context.error,
       skipped: context.skipped,
@@ -252,10 +308,15 @@ export async function runPipeline(
       error: context.error,
       context,
       metrics: extractMetrics(context),
+      telemetry: telemetrySummary,
     };
   } catch (error) {
     context.error = error instanceof Error ? error : new Error(String(error));
     context.timing.endTime = new Date();
+
+    // Capture telemetry even on failure
+    const telemetrySummary = telemetry.getSummary();
+    context.telemetrySummary = telemetrySummary;
 
     // IM-5 FIX: Removed dead rollback code - no stages implement rollback()
     // Recovery is handled by backup stage (restoring from .bak file if needed)
@@ -269,6 +330,7 @@ export async function runPipeline(
       error: context.error,
       context,
       metrics: extractMetrics(context),
+      telemetry: telemetrySummary,
     };
   }
 }
@@ -368,81 +430,198 @@ function getWorkspacePath(memoryPath: string): string {
 /**
  * Stage: Collect input sources.
  * MN-2 FIX: Threshold check integrated here (was separate no-op stage)
+ * Supports incremental processing: tracks which files were already processed
+ * and only marks new/changed sources for extraction.
  */
 async function collectSources(
   context: PipelineContext
 ): Promise<PipelineContext> {
-  const { memoryPath, outputPath, contentThreshold = 2000, force } = context.options;
+  const { memoryPath, outputPath, force, reset, includeSoul } = context.options;
 
   // Extract workspace path from memory path (C-1 fix)
   const workspacePath = getWorkspacePath(memoryPath);
 
-  // Collect sources from workspace
-  const collected = await collectSourcesFromWorkspace(workspacePath);
+  // Handle --reset: clear all synthesis data and caches before collecting
+  if (reset) {
+    logger.info('Reset mode: clearing all synthesis data and caches');
+    clearSynthesisData(workspacePath);
+    clearState(workspacePath);
+    deleteGeneralizationCacheFile(workspacePath);
+    deleteCompressionCacheFile(workspacePath);
+    clearTensionCache(workspacePath);
+  }
+
+  // Collect sources from workspace (skips SOUL.md unless --include-soul)
+  const collected = await collectSourcesFromWorkspace(workspacePath, {
+    includeSoul: includeSoul ?? false,
+  });
 
   // Build pipeline source collection
   const sources: SourceCollection = {
     memoryFiles: collected.memoryFiles.map(f => f.path),
     interviewFiles: [],
+    sessionFiles: collected.sessionFiles.map(f => f.path),
     totalSources: collected.stats.totalSources,
     totalContentSize: collected.stats.memoryContentSize,
   };
 
-  // Check for existing SOUL.md
+  // Check for existing SOUL.md path (for backup stage, not for extraction)
   if (existsSync(outputPath)) {
     sources.existingSoulPath = outputPath;
   }
 
-  // IM-4 FIX: Check content DELTA threshold (compare to last run)
+  // Load state for incremental tracking
   const state = loadState(workspacePath);
-  const lastRunContentSize = state.lastRun.contentSize || 0;
 
-  if (!force && !shouldRunSynthesis(sources.totalContentSize, contentThreshold, lastRunContentSize)) {
-    const delta = sources.totalContentSize - lastRunContentSize;
-    context.skipped = true;
-    context.skipReason = `Content delta below threshold (${delta} < ${contentThreshold} chars)`;
+  // Determine which sources are new/changed
+  const addedMemoryFiles: MemoryFile[] = [];
+  const modifiedMemoryFiles: MemoryFile[] = [];
+  const removedMemoryPaths: string[] = [];
+  const newSessions: SessionFile[] = [];
+  const changedSessions: Array<{ session: SessionFile; previousMessageCount: number }> = [];
+
+  if (reset) {
+    // Reset mode: everything is "new"
+    addedMemoryFiles.push(...collected.memoryFiles);
+    newSessions.push(...collected.sessionFiles);
+  } else {
+    // Incremental mode: diff against previous state
+    const previousMemoryFiles = state.lastRun.memoryFiles;
+    const currentMemoryPaths = new Set<string>();
+
+    for (const memFile of collected.memoryFiles) {
+      currentMemoryPaths.add(memFile.path);
+      const prev = previousMemoryFiles[memFile.path];
+
+      if (!prev) {
+        addedMemoryFiles.push(memFile);
+      } else if (prev.contentHash !== memFile.contentHash) {
+        modifiedMemoryFiles.push(memFile);
+      }
+      // else: unchanged, skip
+    }
+
+    // Find removed files
+    for (const prevPath of Object.keys(previousMemoryFiles)) {
+      if (!currentMemoryPaths.has(prevPath)) {
+        removedMemoryPaths.push(prevPath);
+      }
+    }
+
+    // Diff sessions
+    for (const session of collected.sessionFiles) {
+      const prev = state.processedSessions[session.id];
+
+      if (!prev) {
+        newSessions.push(session);
+      } else if (session.lineCount > prev.lineCount) {
+        changedSessions.push({
+          session,
+          previousMessageCount: prev.messageCount,
+        });
+      }
+      // else: unchanged, skip
+    }
   }
 
-  // Store collected sources for signal extraction
-  // MN-5 FIX: Use proper interface field instead of type assertion
+  const hasNewSources =
+    addedMemoryFiles.length > 0 ||
+    modifiedMemoryFiles.length > 0 ||
+    removedMemoryPaths.length > 0 ||
+    newSessions.length > 0 ||
+    changedSessions.length > 0;
+
+  // Skip logic: no new sources and not forced
+  if (!reset && !force && !hasNewSources) {
+    context.skipped = true;
+    context.skipReason = 'No new or changed sources to process';
+  }
+
+
+  // Log incremental summary
+  if (!reset) {
+    const parts: string[] = [];
+    if (addedMemoryFiles.length > 0) parts.push(`${addedMemoryFiles.length} new memory files`);
+    if (modifiedMemoryFiles.length > 0) parts.push(`${modifiedMemoryFiles.length} modified memory files`);
+    if (removedMemoryPaths.length > 0) parts.push(`${removedMemoryPaths.length} removed memory files`);
+    if (newSessions.length > 0) parts.push(`${newSessions.length} new sessions`);
+    if (changedSessions.length > 0) parts.push(`${changedSessions.length} sessions with new messages`);
+    if (parts.length > 0) {
+      logger.info(`Incremental sources: ${parts.join(', ')}`);
+    } else {
+      logger.info('No new sources detected');
+    }
+  }
+
+  // Store results on context
   context.collectedSources = collected;
   context.sources = sources;
+  context.incremental = {
+    addedMemoryFiles,
+    modifiedMemoryFiles,
+    removedMemoryPaths,
+    newSessions,
+    changedSessions,
+    existingSignalCount: 0,
+    newSignalCount: 0,
+    isReset: reset ?? false,
+  };
+
   return context;
 }
 
 /**
  * Stage: Extract signals from sources.
+ * Supports incremental extraction: loads existing signals, removes stale ones,
+ * extracts only from new/changed sources, and merges.
  */
 async function extractSignals(
   context: PipelineContext
 ): Promise<PipelineContext> {
-  // Get collected sources from previous stage
-  // MN-5 FIX: Use proper interface field instead of type assertion
   const collected = context.collectedSources;
+  const incremental = context.incremental;
 
-  // IM-1 FIX: Don't early return on empty memory - check all source types
-  if (!collected) {
+  if (!collected || !incremental) {
     context.signals = [];
     return context;
   }
 
-  // IM-1 FIX: Check if ANY sources exist, not just memory files
-  const hasAnySources = collected.memoryFiles.length > 0 ||
-    collected.existingSoul ||
-    (collected.interviewSignals && collected.interviewSignals.length > 0);
-
-  if (!hasAnySources) {
-    context.signals = [];
-    return context;
-  }
-
-  // Get LLM provider from context
   const { llm } = context.options;
+  const workspacePath = getWorkspacePath(context.options.memoryPath);
 
-  // Extract signals from all memory files
-  const allSignals: Signal[] = [];
+  // Step 1: Load existing signals (empty for --reset since we cleared them)
+  let existingSignals: Signal[] = [];
+  if (!incremental.isReset) {
+    existingSignals = loadSignals(workspacePath);
+    incremental.existingSignalCount = existingSignals.length;
+  }
 
-  for (const memoryFile of collected.memoryFiles) {
+  // Step 2: Remove stale signals from modified/removed memory files
+  if (!incremental.isReset) {
+    const stalePaths = new Set([
+      ...incremental.modifiedMemoryFiles.map(f => f.path),
+      ...incremental.removedMemoryPaths,
+    ]);
+
+    if (stalePaths.size > 0) {
+      const beforeCount = existingSignals.length;
+      existingSignals = existingSignals.filter(s => !stalePaths.has(s.source.file));
+      const removedCount = beforeCount - existingSignals.length;
+      if (removedCount > 0) {
+        logger.info(`Removed ${removedCount} stale signals from modified/removed files`);
+      }
+    }
+  }
+
+  // Step 3: Extract from new/changed sources only
+  const newSignals: Signal[] = [];
+
+  // Memory files: only added + modified
+  const memoryFilesToProcess = incremental.isReset
+    ? collected.memoryFiles
+    : [...incremental.addedMemoryFiles, ...incremental.modifiedMemoryFiles];
+
+  for (const memoryFile of memoryFilesToProcess) {
     context.options.onProgress?.('extract-signals', 0, `Extracting from ${memoryFile.path}`);
 
     const signals = await extractSignalsFromContent(llm, memoryFile.content, {
@@ -450,24 +629,186 @@ async function extractSignals(
       category: memoryFile.category,
     });
 
-    allSignals.push(...signals);
+    newSignals.push(...signals);
   }
 
-  // Also extract from existing SOUL.md if present (high-signal input)
-  if (collected.existingSoul) {
+  // SOUL.md: only if --include-soul is set (opt-in to avoid feedback loop)
+  if (context.options.includeSoul && collected.existingSoul) {
+    context.options.onProgress?.('extract-signals', 50, 'Extracting from SOUL.md (--include-soul)');
     const soulSignals = await extractSignalsFromContent(llm, collected.existingSoul.rawContent, {
       file: collected.existingSoul.path,
       category: 'soul',
     });
-    allSignals.push(...soulSignals);
+    newSignals.push(...soulSignals);
   }
 
-  // CR-4: Merge interview signals (already parsed Signal objects from JSON)
+  // Interview signals: always merged (already parsed, no LLM cost)
   if (collected.interviewSignals && collected.interviewSignals.length > 0) {
-    context.options.onProgress?.('extract-signals', 90, `Adding ${collected.interviewSignals.length} interview signals`);
-    allSignals.push(...collected.interviewSignals);
+    context.options.onProgress?.('extract-signals', 70, `Adding ${collected.interviewSignals.length} interview signals`);
+    newSignals.push(...collected.interviewSignals);
   }
 
+  // Sessions: only new + changed
+  // Sessions are already sorted newest-first by readSessionFiles(), so the most
+  // identity-relevant conversations are processed first when budget cuts off.
+  const sessionsToProcess = incremental.isReset
+    ? collected.sessionFiles
+    : incremental.newSessions;
+
+  // Adaptive time budget — estimates downstream LLM cost and stops extraction
+  // when remaining time can't safely cover synthesis + generation.
+  const timeBudgetMs = (context.options.timeBudgetMinutes ?? 20) * 60 * 1000;
+  const DOWNSTREAM_CALLS_PER_NEW_SIGNAL = 2.5;     // generalize + match + compress (amortized)
+  const DOWNSTREAM_CALLS_PER_CACHED_SIGNAL = 0.5;  // compression only (generalize + match skipped via cache)
+  const GENERATION_OVERHEAD_CALLS = 5;              // soul generator + prose expansion
+  const SAFETY_FACTOR = 0.7;                        // reserve 30% margin
+
+  // Determine how many existing signals have cached synthesis results
+  // Cached signals skip generalization + matching, so their downstream cost is much lower
+  let cachedSignalCount = 0;
+  if (!incremental.isReset) {
+    const state = loadState(getWorkspacePath(context.options.memoryPath));
+    const cache = state.reflectionCache;
+    if (cache && cache.processedSignalIds.length > 0) {
+      cachedSignalCount = cache.processedSignalIds.length;
+    }
+  }
+  const preSessionRequests = context.telemetry?.getSummary().totalRequests ?? 0;
+  let sessionsExtracted = 0;
+  let budgetExhausted = false;
+  const extractedSessionIds = new Set<string>();
+  incremental.extractedSessionIds = extractedSessionIds;
+
+  if (sessionsToProcess.length > 0) {
+    context.options.onProgress?.('extract-signals', 80, `Extracting from ${sessionsToProcess.length} new session files`);
+
+    for (const session of sessionsToProcess) {
+      // Budget check: can we afford to process this session?
+      if (sessionsExtracted > 0 && context.telemetry) {
+        const summary = context.telemetry.getSummary();
+        if (summary.totalRequests > 0) {
+          const elapsed = Date.now() - context.timing.startTime.getTime();
+          const remaining = timeBudgetMs - elapsed;
+          const avgCallMs = summary.avgDurationMs;
+
+          // Split downstream estimate: cached signals cost ~0.5 calls, new signals cost 2.5
+          const cachedDownstream = cachedSignalCount * DOWNSTREAM_CALLS_PER_CACHED_SIGNAL * avgCallMs;
+          const newDownstream = newSignals.length * DOWNSTREAM_CALLS_PER_NEW_SIGNAL * avgCallMs;
+          const downstream = cachedDownstream + newDownstream;
+          const sessionCalls = (summary.totalRequests - preSessionRequests) / sessionsExtracted;
+          const nextSession = sessionCalls * avgCallMs;
+          const genOverhead = GENERATION_OVERHEAD_CALLS * avgCallMs;
+          const estimatedWork = downstream + nextSession + genOverhead;
+          const budgetCeiling = remaining * SAFETY_FACTOR;
+
+          logger.info(
+            `Budget check [${sessionsExtracted}/${sessionsToProcess.length}]: ` +
+            `${newSignals.length} new + ${cachedSignalCount} cached signals, ${(elapsed / 1000).toFixed(0)}s elapsed, ` +
+            `${(remaining / 1000).toFixed(0)}s remaining | ` +
+            `est. work: ${(estimatedWork / 1000).toFixed(0)}s ` +
+            `(downstream=${(downstream / 1000).toFixed(0)}s [${(newDownstream / 1000).toFixed(0)}s new + ${(cachedDownstream / 1000).toFixed(0)}s cached] ` +
+            `+ next=${(nextSession / 1000).toFixed(0)}s + gen=${(genOverhead / 1000).toFixed(0)}s) ` +
+            `vs budget: ${(budgetCeiling / 1000).toFixed(0)}s`
+          );
+
+          if (estimatedWork > budgetCeiling) {
+            const skipped = sessionsToProcess.length - sessionsExtracted;
+            logger.info(
+              `Adaptive budget: stopping after ${sessionsExtracted}/${sessionsToProcess.length} sessions. ` +
+              `Reserving time for downstream synthesis.`
+            );
+            budgetExhausted = true;
+            incremental.budgetExhausted = true;
+            incremental.sessionsSkippedByBudget = skipped;
+            break;
+          }
+        }
+      }
+
+      const content = sessionToMemoryContent(session);
+      if (content.trim().length > 0) {
+        const sessionSignals = await extractSignalsFromContent(llm, content, {
+          file: session.path,
+          category: 'session',
+        });
+        newSignals.push(...sessionSignals);
+      }
+      extractedSessionIds.add(session.id);
+      sessionsExtracted++;
+    }
+  }
+
+  // Sessions with new messages: extract only from new messages
+  if (!budgetExhausted && incremental.changedSessions.length > 0) {
+    context.options.onProgress?.('extract-signals', 90, `Extracting new messages from ${incremental.changedSessions.length} sessions`);
+
+    for (const { session, previousMessageCount } of incremental.changedSessions) {
+      // Budget check for changed sessions too
+      if (sessionsExtracted > 0 && context.telemetry) {
+        const summary = context.telemetry.getSummary();
+        if (summary.totalRequests > 0) {
+          const elapsed = Date.now() - context.timing.startTime.getTime();
+          const remaining = timeBudgetMs - elapsed;
+          const avgCallMs = summary.avgDurationMs;
+
+          const cachedDownstream = cachedSignalCount * DOWNSTREAM_CALLS_PER_CACHED_SIGNAL * avgCallMs;
+          const newDownstream = newSignals.length * DOWNSTREAM_CALLS_PER_NEW_SIGNAL * avgCallMs;
+          const downstream = cachedDownstream + newDownstream;
+          const sessionCalls = (summary.totalRequests - preSessionRequests) / sessionsExtracted;
+          const nextSession = sessionCalls * avgCallMs;
+          const genOverhead = GENERATION_OVERHEAD_CALLS * avgCallMs;
+          const estimatedWork = downstream + nextSession + genOverhead;
+          const budgetCeiling = remaining * SAFETY_FACTOR;
+
+          const changedIdx = sessionsExtracted - sessionsToProcess.length;
+          logger.info(
+            `Budget check [changed ${Math.max(0, changedIdx)}/${incremental.changedSessions.length}]: ` +
+            `${newSignals.length} new + ${cachedSignalCount} cached signals, ${(elapsed / 1000).toFixed(0)}s elapsed, ` +
+            `${(remaining / 1000).toFixed(0)}s remaining | ` +
+            `est. work: ${(estimatedWork / 1000).toFixed(0)}s vs budget: ${(budgetCeiling / 1000).toFixed(0)}s`
+          );
+
+          if (estimatedWork > budgetCeiling) {
+            const totalChanged = incremental.changedSessions.length;
+            const processedChanged = sessionsExtracted - sessionsToProcess.length;
+            const skipped = totalChanged - Math.max(0, processedChanged);
+            logger.info(
+              `Adaptive budget: stopping changed session extraction. ` +
+              `Reserving time for downstream synthesis.`
+            );
+            budgetExhausted = true;
+            incremental.budgetExhausted = true;
+            incremental.sessionsSkippedByBudget = (incremental.sessionsSkippedByBudget ?? 0) + skipped;
+            break;
+          }
+        }
+      }
+
+      const content = sessionToMemoryContent(session, previousMessageCount);
+      if (content.trim().length > 0) {
+        const sessionSignals = await extractSignalsFromContent(llm, content, {
+          file: session.path,
+          category: 'session',
+        });
+        newSignals.push(...sessionSignals);
+      }
+      extractedSessionIds.add(session.id);
+      sessionsExtracted++;
+    }
+  }
+
+  // Step 4: Merge
+  incremental.newSignalCount = newSignals.length;
+  const allSignals = [...existingSignals, ...newSignals];
+
+  if (!incremental.isReset && incremental.existingSignalCount > 0) {
+    logger.info(
+      `Signal merge: ${incremental.existingSignalCount} existing → ` +
+      `${existingSignals.length} after stale removal + ${newSignals.length} new = ${allSignals.length} total`
+    );
+  }
+
+  context.options.onProgress?.('extract-signals', 100, `${allSignals.length} signals (${newSignals.length} new)`);
   context.signals = allSignals;
   return context;
 }
@@ -475,11 +816,14 @@ async function extractSignals(
 /**
  * Stage: Single-pass reflective synthesis.
  * Architecture (2026-02-10): Single-pass replaces iterative loop.
+ * Cache: Loads generalization cache from disk and rehydrates principle store
+ * from previous run to skip already-processed signals.
  */
 async function reflectiveSynthesis(
   context: PipelineContext
 ): Promise<PipelineContext> {
   const { llm } = context.options;
+  const workspacePath = getWorkspacePath(context.options.memoryPath);
 
   // Skip if no signals extracted
   if (!context.signals || context.signals.length === 0) {
@@ -490,10 +834,66 @@ async function reflectiveSynthesis(
     return context;
   }
 
+  // Load all caches from disk (populates in-memory LRUs)
+  loadGeneralizationCache(workspacePath);
+  loadCompressionCache(workspacePath);
+  loadTensionCache(workspacePath);
+
+  // Determine if we can rehydrate the principle store from cache
+  let cachedPrinciples: Principle[] | undefined;
+  let cachedProcessedSignalIds: string[] | undefined;
+  let cachedAxioms: Axiom[] | undefined;
+  const isReset = context.incremental?.isReset ?? false;
+
+  if (!isReset) {
+    const state = loadState(workspacePath);
+    const cache = state.reflectionCache;
+
+    if (cache && cache.processedSignalIds.length > 0) {
+      const modelId = llm.getModelId?.() ?? 'unknown';
+
+      // Validate cache: model and threshold must match
+      if (cache.model !== modelId) {
+        logger.info(`[synthesis] Cache invalidated: model changed (${cache.model} → ${modelId})`);
+      } else if (cache.principleThreshold !== 0.75) {
+        // Default threshold — if it changes, invalidate
+        logger.info(`[synthesis] Cache invalidated: threshold changed`);
+      } else {
+        // Check for signal removal: all cached signal IDs must still be present
+        const currentSignalIds = new Set(context.signals.map(s => s.id));
+        const removedSignals = cache.processedSignalIds.filter(id => !currentSignalIds.has(id));
+
+        if (removedSignals.length > 0) {
+          logger.info(
+            `[synthesis] Cache invalidated: ${removedSignals.length} signals removed — full principle rebuild`
+          );
+        } else {
+          // Cache is valid — load principles and processed IDs
+          const principles = loadPrinciples(workspacePath);
+          if (principles.length > 0) {
+            cachedPrinciples = principles;
+            cachedProcessedSignalIds = cache.processedSignalIds;
+
+            // Also load cached axioms for compression skip
+            const axioms = loadAxioms(workspacePath);
+            if (axioms.length > 0) {
+              cachedAxioms = axioms;
+            }
+          }
+        }
+      }
+    }
+  } else {
+    logger.info('[synthesis] Reset mode: skipping cache, full rebuild');
+  }
+
   // Run single-pass synthesis with LLM provider
   context.options.onProgress?.('reflective-synthesis', 10, 'Starting single-pass synthesis...');
 
   const result = await runReflectiveLoop(llm, context.signals, {
+    ...(cachedPrinciples && { cachedPrinciples }),
+    ...(cachedProcessedSignalIds && { cachedProcessedSignalIds }),
+    ...(cachedAxioms && { cachedAxioms }),
     onComplete: () => {
       context.options.onProgress?.(
         'reflective-synthesis',
@@ -502,6 +902,16 @@ async function reflectiveSynthesis(
       );
     },
   });
+
+  // Save all caches to disk for next run
+  saveGeneralizationCache(workspacePath);
+  saveCompressionCache(workspacePath);
+  saveTensionCache(workspacePath);
+
+  // Store processed signal IDs on context for persistence in validateOutput
+  if (result.processedSignalIds) {
+    context.reflectionProcessedSignalIds = result.processedSignalIds;
+  }
 
   context.principles = result.principles;
   context.axioms = result.axioms;
@@ -554,17 +964,53 @@ async function validateOutput(
       context.axioms ?? []
     );
 
-    // Update state with run metrics
+    // Update state with run metrics and incremental tracking
     const state = loadState(workspacePath);
     state.lastRun.timestamp = new Date().toISOString();
-    // IM-4 FIX: Track content size for delta comparison on next run
     state.lastRun.contentSize = context.sources?.totalContentSize ?? 0;
     state.metrics.totalSignalsProcessed += context.signals?.length ?? 0;
     state.metrics.totalPrinciplesGenerated = context.principles?.length ?? 0;
     state.metrics.totalAxiomsGenerated = context.axioms?.length ?? 0;
-    saveState(workspacePath, state);
 
-    context.options.onProgress?.('validate-output', 100, 'Persisted synthesis data');
+    // Track processed memory files (content hashes for incremental detection)
+    const collected = context.collectedSources;
+    if (collected) {
+      // Build complete memory file map from all current files
+      const memoryFileMap: Record<string, { contentHash: string; processedAt: string }> = {};
+      for (const memFile of collected.memoryFiles) {
+        memoryFileMap[memFile.path] = {
+          contentHash: memFile.contentHash,
+          processedAt: new Date().toISOString(),
+        };
+      }
+      state.lastRun.memoryFiles = memoryFileMap;
+
+      // Track processed sessions — only mark sessions that were actually extracted.
+      // Sessions skipped by the adaptive budget remain unmarked so they get
+      // picked up on the next run (newest-first ensures recent sessions take priority).
+      const extracted = context.incremental?.extractedSessionIds;
+      for (const session of collected.sessionFiles) {
+        if (!extracted || extracted.has(session.id)) {
+          state.processedSessions[session.id] = {
+            lineCount: session.lineCount,
+            messageCount: session.messages.length,
+            lastProcessedAt: new Date().toISOString(),
+          };
+        }
+      }
+    }
+
+    // Persist reflection cache for principle store rehydration on next run
+    if (context.reflectionProcessedSignalIds) {
+      state.reflectionCache = {
+        processedSignalIds: context.reflectionProcessedSignalIds,
+        model: context.options.llm.getModelId?.() ?? 'unknown',
+        principleThreshold: 0.75,
+      };
+    }
+
+    saveState(workspacePath, state);
+    context.options.onProgress?.('validate-output', 100, 'Persisted synthesis data and incremental state');
   }
 
   return context;
@@ -824,6 +1270,17 @@ export function formatPipelineResult(result: PipelineResult): string {
   }
 
   lines.push(`**Status**: Success`);
+
+  // Incremental processing info
+  if (result.context.incremental) {
+    const inc = result.context.incremental;
+    if (inc.isReset) {
+      lines.push(`**Mode**: Reset (full re-extraction)`);
+    } else if (inc.existingSignalCount > 0) {
+      lines.push(`**Mode**: Incremental (${inc.existingSignalCount} existing + ${inc.newSignalCount} new signals)`);
+    }
+  }
+
   lines.push('');
   lines.push('## Metrics');
   lines.push('');
@@ -857,6 +1314,51 @@ export function formatPipelineResult(result: PipelineResult): string {
     : 0;
   lines.push('');
   lines.push(`**Duration**: ${duration.toFixed(1)}s`);
+
+  // Stage timing breakdown
+  if (Object.keys(result.context.timing.stageTimes).length > 0) {
+    lines.push('');
+    lines.push('## Stage Timing');
+    lines.push('');
+    lines.push('| Stage | Duration |');
+    lines.push('|-------|----------|');
+    for (const [stage, ms] of Object.entries(result.context.timing.stageTimes)) {
+      lines.push(`| ${stage} | ${(ms / 1000).toFixed(1)}s |`);
+    }
+  }
+
+  // LLM Telemetry
+  if (result.telemetry && result.telemetry.totalRequests > 0) {
+    lines.push('');
+    lines.push('## LLM Telemetry');
+    lines.push('');
+    lines.push(`| Metric | Value |`);
+    lines.push(`|--------|-------|`);
+    lines.push(`| Model | ${result.telemetry.model} |`);
+    lines.push(`| Total requests | ${result.telemetry.totalRequests} |`);
+    lines.push(`| Classify | ${result.telemetry.classifyRequests} |`);
+    lines.push(`| Generate | ${result.telemetry.generateRequests} |`);
+    lines.push(`| Success | ${result.telemetry.successCount} |`);
+    lines.push(`| Failed | ${result.telemetry.failCount} |`);
+    lines.push(`| Timeout | ${result.telemetry.timeoutCount} |`);
+    lines.push(`| Total LLM time | ${(result.telemetry.totalLLMTimeMs / 1000).toFixed(1)}s |`);
+    lines.push(`| Avg/request | ${(result.telemetry.avgDurationMs / 1000).toFixed(1)}s |`);
+    lines.push(`| Max (slowest) | ${(result.telemetry.maxDurationMs / 1000).toFixed(1)}s |`);
+    lines.push(`| Min (fastest) | ${(result.telemetry.minDurationMs / 1000).toFixed(1)}s |`);
+
+    if (result.telemetry.stages.length > 0) {
+      lines.push('');
+      lines.push('### Per-Stage LLM Requests');
+      lines.push('');
+      lines.push('| Stage | Requests | OK | Fail | Timeout | Total Time | Avg Time |');
+      lines.push('|-------|----------|----|------|---------|------------|----------|');
+      for (const stage of result.telemetry.stages) {
+        lines.push(
+          `| ${stage.stage} | ${stage.requestCount} | ${stage.successCount} | ${stage.failCount} | ${stage.timeoutCount} | ${(stage.totalDurationMs / 1000).toFixed(1)}s | ${(stage.avgDurationMs / 1000).toFixed(1)}s |`
+        );
+      }
+    }
+  }
 
   return lines.join('\n');
 }

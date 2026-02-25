@@ -87,22 +87,24 @@ To unblock, add external validation (feedback, research, critique) to your memor
 
 ---
 
-## Cycle Management
+## Incremental Synthesis
 
-Synthesis adapts based on how much has changed:
+Synthesis is **incremental by default** — only new or changed content triggers signal extraction. Three layers of disk caching (generalization, compression, tension) ensure unchanged data is never re-processed. Fully-cached runs complete in seconds with only 6 LLM requests (prose expansion + soul generation).
 
-| Mode | When | Behavior |
+| Mode | Flag | Behavior |
 |------|------|----------|
-| **initial** | First synthesis | Full synthesis from scratch |
-| **incremental** | <30% new principles | Merge insights efficiently |
-| **full-resynthesis** | Major changes | Complete rebuild |
+| **Incremental** | *(default)* | Only process new/changed memory files and sessions. Merge new signals with existing. Skip if nothing changed. |
+| **Reset** | `--reset` | Clear all synthesis data and caches, re-extract from scratch. |
+| **Force** | `--force` | Run even if no new sources detected. |
+| **Include SOUL** | `--include-soul` | Include existing SOUL.md as input (off by default to prevent feedback loop). |
 
-Full resynthesis triggers automatically when:
-- New principle ratio ≥30%
-- Contradictions detected (≥2)
-- Hierarchy structure changed
+```bash
+/neon-soul synthesize              # Incremental (default)
+/neon-soul synthesize --reset      # Clean slate
+/neon-soul synthesize --force      # Force even if no changes
+```
 
-Manual trigger: `--force-resynthesis` flag.
+SOUL.md is excluded from input by default — it's a derivative of the pipeline's own output. Re-ingesting it inflates LLM request counts. Use `--include-soul` when bootstrapping from a hand-crafted file.
 
 ---
 
@@ -193,11 +195,11 @@ Using semantic compression techniques from NEON-AI research:
 
 **Stack**: Node.js + TypeScript (native OpenClaw integration)
 
-**Architecture**: NEON-SOUL is implemented as an **OpenClaw skill**, not a standalone CLI:
-- Uses OpenClaw's authenticated LLM access (no separate API key)
-- Invoked via `/neon-soul` skill commands or scheduled via OpenClaw cron
+**Architecture**: NEON-SOUL works as an **OpenClaw skill** and as a **standalone CLI**:
+- Invoked via `/neon-soul` skill commands, scheduled via cron, or `npx tsx src/cli.ts`
+- Uses Ollama for local LLM inference (no API keys needed)
 - LLM-based semantic similarity (no third-party npm packages)
-- Native access to OpenClaw memory system
+- Multi-layer disk caching for incremental runs
 
 **Why TypeScript**: OpenClaw is built in TypeScript/Node.js. Using the same stack provides:
 - Same runtime (Node.js already installed)
@@ -227,27 +229,27 @@ neon-soul/
 │   │   ├── trace.ts             # Quick single-axiom lookup
 │   │   └── download-templates.ts # Dev: download soul templates
 │   ├── lib/                     # Core library
-│   │   ├── paths.ts             # Shared workspace path resolution
-│   │   ├── persistence.ts       # Load/save synthesis data
-│   │   ├── state.ts             # State persistence
-│   │   ├── backup.ts            # Backup/rollback utilities
+│   │   ├── pipeline.ts          # Main orchestration (8-stage pipeline)
+│   │   ├── reflection-loop.ts   # Iterative synthesis with compression skip
+│   │   ├── signal-extractor.ts  # Signal extraction from memory content
+│   │   ├── signal-generalizer.ts # LLM generalization + disk cache
+│   │   ├── compressor.ts        # Axiom notation + disk cache
+│   │   ├── tension-detector.ts  # Axiom tension detection + disk cache
+│   │   ├── prose-expander.ts    # Prose expansion (5 sections)
+│   │   ├── soul-generator.ts    # SOUL.md generation
 │   │   ├── llm-similarity.ts    # LLM-based semantic similarity
 │   │   ├── matcher.ts           # Semantic similarity matching
 │   │   ├── principle-store.ts   # N-count convergence
-│   │   ├── compressor.ts        # Axiom synthesis
-│   │   ├── interview.ts         # Gap-filling interview flow
-│   │   ├── question-bank.ts     # 32 questions x 7 dimensions
-│   │   ├── memory-walker.ts     # OpenClaw memory traversal
-│   │   ├── memory-extraction-config.ts
-│   │   ├── pipeline.ts          # Main orchestration (7-stage pipeline)
-│   │   ├── reflection-loop.ts   # Iterative convergence detection
 │   │   ├── source-collector.ts  # Multi-source input collection
-│   │   ├── axiom-emergence.ts   # Cross-source axiom detection
-│   │   ├── soul-generator.ts    # SOUL.md generation (7 dimensions)
-│   │   ├── compressor.ts        # Axiom synthesis with LLM notation
-│   │   ├── audit.ts             # JSONL audit trail
-│   │   ├── evolution.ts         # Soul version tracking
-│   │   └── trajectory.ts        # Trajectory metrics
+│   │   ├── session-reader.ts    # Session log parsing + adaptive budget
+│   │   ├── memory-walker.ts     # OpenClaw memory traversal
+│   │   ├── persistence.ts       # Load/save synthesis data
+│   │   ├── state.ts             # Incremental state tracking
+│   │   ├── backup.ts            # Backup/rollback utilities
+│   │   ├── paths.ts             # Shared workspace path resolution
+│   │   ├── llm-telemetry.ts     # LLM call tracking + request counting
+│   │   ├── logger.ts            # Structured logging
+│   │   └── audit.ts             # JSONL audit trail
 │   └── types/                   # TypeScript interfaces
 │       ├── signal.ts            # Signal + SoulCraftDimension
 │       ├── principle.ts         # Principle + N-count
@@ -263,8 +265,9 @@ neon-soul/
 │   └── e2e/                     # End-to-end tests
 │       ├── live-synthesis.test.ts # Full pipeline + commands
 │       └── fixtures/mock-openclaw/ # Simulated workspace
-├── skill/                       # OpenClaw skill definition
-│   └── SKILL.md                 # Skill manifest
+├── skills/                      # OpenClaw skill definitions
+│   ├── neon-soul/SKILL.md       # Primary skill (developer voice)
+│   └── consciousness-soul-identity/SKILL.md  # SEO skill (agent voice)
 ├── docker/                      # OpenClaw development environment
 │   ├── docker-compose.yml       # Local development setup
 │   ├── .env.example             # Environment template
@@ -326,11 +329,9 @@ clawhub install leegitw/neon-soul
 
 Skills install to `./skills/` and OpenClaw loads them automatically.
 
-### Via npm (for OpenClaw skill developers)
+### Via npm
 
-> **Note**: The npm package requires an LLM provider context from OpenClaw.
-> It will throw `LLMRequiredError` if used standalone.
-> For standalone use, wait for v0.2.0 which will include Ollama fallback.
+> **Note**: Requires Ollama running locally (`ollama serve`) as the LLM backend.
 
 ```bash
 npm install neon-soul
@@ -346,11 +347,11 @@ Open `skills/neon-soul/SKILL.md` on GitHub, copy contents, paste directly into y
 
 After installing, try these commands:
 
-1. `/neon-soul status` - See your current state
-2. `/neon-soul synthesize --dry-run` - Preview synthesis (no changes)
-3. `/neon-soul synthesize --force` - Run synthesis when ready
-4. `/neon-soul audit --list` - Explore what was created
-5. `/neon-soul trace <axiom-id>` - See provenance for any axiom
+1. `/neon-soul synthesize --dry-run` - Preview synthesis (no changes)
+2. `/neon-soul synthesize` - Run synthesis (incremental by default)
+3. `/neon-soul audit --list` - Explore what was created
+4. `/neon-soul trace <axiom-id>` - See provenance for any axiom
+5. Set up scheduled synthesis (see `skills/neon-soul/SKILL.md` → Scheduled Synthesis)
 
 ---
 
@@ -439,7 +440,7 @@ npm install && npm run build
 
 **Phase**: ✅ Production Ready (All Phases Complete)
 
-**Version**: 0.2.1 | **Tests**: 338 passing (19 skipped, 12 todo) | **Code Reviews**: 5 rounds (N=2 cross-architecture)
+**Version**: 0.3.1 | **Tests**: 415 passing (19 skipped, 12 todo) | **Code Reviews**: 5 rounds (N=2 cross-architecture)
 
 ### Implementation Complete
 
@@ -477,7 +478,7 @@ npm install && npm run build
 |----------|-------------|
 | [CLAUDE.md](CLAUDE.md) | AI assistant context for Claude Code development |
 | [Soul Bootstrap Proposal](docs/proposals/soul-bootstrap-pipeline-proposal.md) | Authoritative design: three-phase pipeline with hybrid C+D integration |
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System reference (created during Phase 0 implementation) |
+| [Architecture](docs/architecture/README.md) | System reference (created during Phase 0 implementation) |
 | [Reflective Manifold Trajectory Metrics](docs/research/reflective-manifold-trajectory-metrics.md) | Attractor basin convergence and trajectory analysis for soul quality |
 | [OpenClaw Soul Architecture](docs/research/openclaw-soul-architecture.md) | Complete analysis of OpenClaw's soul system (~35K tokens) |
 | [OpenClaw Self-Learning Agent](docs/research/openclaw-self-learning-agent.md) | Soul evolution mechanics: memory → synthesis → updated identity (RQ5) |

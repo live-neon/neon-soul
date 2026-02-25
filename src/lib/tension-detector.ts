@@ -8,10 +8,31 @@
  * Processes pairs in batches with concurrency limit.
  */
 
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync, unlinkSync } from 'node:fs';
+import { resolve } from 'node:path';
 import type { Axiom } from '../types/axiom.js';
 import type { LLMProvider } from '../types/llm.js';
 import { requireLLM, sanitizeForPrompt } from './semantic-classifier.js';
 import { logger } from './logger.js';
+import { LRUCache } from 'lru-cache';
+import { writeFileAtomic } from './persistence.js';
+
+/**
+ * LRU cache for tension pair results.
+ * Key: hash(sorted(text1, text2) + model) — order-agnostic
+ * Value: tension description or null (no tension)
+ */
+interface CachedTensionResult {
+  hasTension: boolean;
+  description: string | null;
+}
+const tensionResultCache = new LRUCache<string, CachedTensionResult>({ max: 1000 });
+
+function getTensionCacheKey(text1: string, text2: string, model: string): string {
+  const sorted = [text1, text2].sort();
+  return createHash('sha256').update(sorted[0] + ':' + sorted[1] + ':' + model).digest('hex').slice(0, 16);
+}
 
 /**
  * Value tension between two axioms.
@@ -53,12 +74,29 @@ function determineSeverity(a1: Axiom, a2: Axiom): 'high' | 'medium' | 'low' {
 /**
  * Check if a single pair of axioms are in tension using LLM.
  * Returns null if no tension detected.
+ * Uses cache keyed by sorted text pair + model to avoid redundant LLM calls.
  */
 async function checkTensionPair(
   llm: LLMProvider,
   axiom1: Axiom,
-  axiom2: Axiom
+  axiom2: Axiom,
+  model: string = 'unknown'
 ): Promise<ValueTension | null> {
+  // Check tension cache first (order-agnostic key)
+  const cacheKey = getTensionCacheKey(axiom1.text, axiom2.text, model);
+  const cached = tensionResultCache.get(cacheKey);
+  if (cached) {
+    if (!cached.hasTension) {
+      return null;
+    }
+    return {
+      axiom1Id: axiom1.id,
+      axiom2Id: axiom2.id,
+      description: cached.description!,
+      severity: determineSeverity(axiom1, axiom2),
+    };
+  }
+
   // I-1 FIX: Sanitize axiom text
   const sanitized1 = sanitizeForPrompt(axiom1.text);
   const sanitized2 = sanitizeForPrompt(axiom2.text);
@@ -79,13 +117,19 @@ If they don't conflict, respond with exactly "none".`;
   // Short responses like "conflict" (8 chars), "yes" (3 chars) were being dropped
   const noTensionIndicators = ['none', 'no tension', 'no conflict', 'compatible', 'aligned', 'no'];
   if (noTensionIndicators.some((indicator) => text === indicator || text.startsWith(indicator + ' ') || text.startsWith(indicator + '.'))) {
+    // Cache negative result
+    tensionResultCache.set(cacheKey, { hasTension: false, description: null });
     return null;
   }
+
+  const description = result.text.trim();
+  // Cache positive result
+  tensionResultCache.set(cacheKey, { hasTension: true, description });
 
   return {
     axiom1Id: axiom1.id,
     axiom2Id: axiom2.id,
-    description: result.text.trim(),
+    description,
     severity: determineSeverity(axiom1, axiom2),
   };
 }
@@ -104,7 +148,8 @@ If they don't conflict, respond with exactly "none".`;
  */
 export async function detectTensions(
   llm: LLMProvider | null | undefined,
-  axioms: Axiom[]
+  axioms: Axiom[],
+  model: string = 'unknown'
 ): Promise<ValueTension[]> {
   requireLLM(llm, 'detectTensions');
 
@@ -141,7 +186,7 @@ export async function detectTensions(
   for (let batch = 0; batch < pairs.length; batch += TENSION_DETECTION_CONCURRENCY) {
     const batchPairs = pairs.slice(batch, batch + TENSION_DETECTION_CONCURRENCY);
     const results = await Promise.all(
-      batchPairs.map(({ axiom1, axiom2 }) => checkTensionPair(llm, axiom1, axiom2))
+      batchPairs.map(({ axiom1, axiom2 }) => checkTensionPair(llm, axiom1, axiom2, model))
     );
 
     // Filter out nulls (no tension detected)
@@ -214,4 +259,83 @@ export function attachTensionsToAxioms(
   }
 
   return axioms;
+}
+
+/**
+ * Tension cache file format.
+ */
+interface TensionCacheFile {
+  version: 1;
+  entries: Record<string, CachedTensionResult>;
+}
+
+/**
+ * Save the tension cache to disk.
+ * Persists to .neon-soul/tension-cache.json for reuse across process invocations.
+ */
+export function saveTensionCache(workspacePath: string): void {
+  if (tensionResultCache.size === 0) {
+    return;
+  }
+
+  const filePath = resolve(workspacePath, '.neon-soul', 'tension-cache.json');
+
+  const entries: Record<string, CachedTensionResult> = {};
+  for (const [key, value] of tensionResultCache.entries()) {
+    entries[key] = value;
+  }
+
+  const cacheFile: TensionCacheFile = {
+    version: 1,
+    entries,
+  };
+
+  try {
+    writeFileAtomic(filePath, JSON.stringify(cacheFile));
+    logger.info(`[tension-detector] Saved ${Object.keys(entries).length} tension cache entries to disk`);
+  } catch (error) {
+    logger.warn('[tension-detector] Failed to save tension cache to disk', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+/**
+ * Load the tension cache from disk into memory.
+ */
+export function loadTensionCache(workspacePath: string): void {
+  const filePath = resolve(workspacePath, '.neon-soul', 'tension-cache.json');
+
+  if (!existsSync(filePath)) {
+    return;
+  }
+
+  try {
+    const content = readFileSync(filePath, 'utf-8');
+    const cacheFile = JSON.parse(content) as TensionCacheFile;
+
+    let loaded = 0;
+    for (const [key, value] of Object.entries(cacheFile.entries)) {
+      tensionResultCache.set(key, value);
+      loaded++;
+    }
+
+    logger.info(`[tension-detector] Loaded ${loaded} tension cache entries from disk`);
+  } catch (error) {
+    logger.warn('[tension-detector] Failed to load tension cache from disk (starting empty)', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+/**
+ * Clear the in-memory tension cache and delete the cache file from disk.
+ */
+export function clearTensionCache(workspacePath: string): void {
+  tensionResultCache.clear();
+  const filePath = resolve(workspacePath, '.neon-soul', 'tension-cache.json');
+  if (existsSync(filePath)) {
+    unlinkSync(filePath);
+    logger.debug('[tension-detector] Deleted tension cache file from disk');
+  }
 }

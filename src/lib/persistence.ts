@@ -152,6 +152,20 @@ export function saveSynthesisData(
 }
 
 /**
+ * Clear all synthesis data files (for --reset).
+ * Removes signals.json, principles.json, and axioms.json.
+ */
+export function clearSynthesisData(workspacePath: string): void {
+  const dir = getNeonSoulDir(workspacePath);
+  for (const file of ['signals.json', 'principles.json', 'axioms.json']) {
+    const filePath = resolve(dir, file);
+    if (existsSync(filePath)) {
+      unlinkSync(filePath);
+    }
+  }
+}
+
+/**
  * Load signals from .neon-soul/signals.json.
  */
 export function loadSignals(workspacePath: string): Signal[] {

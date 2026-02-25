@@ -101,4 +101,10 @@ export interface Axiom {
    * PBD Stage 15: Provenance diversity count (how many distinct provenance types).
    */
   provenanceDiversity?: number;
+
+  /**
+   * Original signal texts that contributed to this axiom's parent principle.
+   * Threaded through for voice preservation in prose expansion.
+   */
+  originalVoices?: string[];
 }

@@ -19,6 +19,8 @@
 
 | Plan | Status | Description |
 |------|--------|-------------|
+| [Session Noise Filtering](2026-02-24-session-noise-filtering.md) | Complete | Filter system/cron noise from sessions (-58% signals, -50% LLM time, major SOUL.md quality fix) |
+| [Structured Classification Optimization](2026-02-23-structured-classification-optimization.md) | Complete | Reduce per-signal LLM calls from 5 to 1 (-48% extract requests, -38% LLM time) |
 | [Inhabitable Soul Output](2026-02-10-inhabitable-soul-output.md) | Complete | Prose expansion for inhabitable souls |
 | [Soul Bootstrap Master](2026-02-07-soul-bootstrap-master.md) | Complete | Master plan for soul synthesis |
 | [Phase 0: Project Setup](2026-02-07-phase0-project-setup.md) | Complete | Initial project scaffolding |

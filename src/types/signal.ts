@@ -80,7 +80,7 @@ export type SoulCraftDimension =
 /**
  * Source type for signal provenance.
  */
-export type SignalSourceType = 'memory' | 'interview' | 'template';
+export type SignalSourceType = 'memory' | 'interview' | 'template' | 'session';
 
 export interface SignalSource {
   /** Type of source (memory, interview, template) */

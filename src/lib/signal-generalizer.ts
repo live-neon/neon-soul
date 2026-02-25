@@ -5,12 +5,15 @@
  */
 
 import { createHash } from 'node:crypto';
+import { existsSync, readFileSync, unlinkSync } from 'node:fs';
+import { resolve } from 'node:path';
 import type { Signal, GeneralizedSignal, GeneralizationProvenance } from '../types/signal.js';
 import type { LLMProvider } from '../types/llm.js';
 import { requireLLM } from '../types/llm.js';
 import { logger } from './logger.js';
 import { LRUCache } from 'lru-cache';
 import { buildPrompt, validateGeneralization } from './generalization-helpers.js';
+import { writeFileAtomic } from './persistence.js';
 
 /** Prompt version for cache invalidation. Bump when changing prompt or validation. */
 export const PROMPT_VERSION = 'v1.0.0';
@@ -367,4 +370,109 @@ export function getCacheStats(): { size: number; maxSize: number } {
     size: generalizationCache.size,
     maxSize: CACHE_MAX_SIZE,
   };
+}
+
+/**
+ * Generalization cache file format.
+ */
+interface GeneralizationCacheFile {
+  version: 1;
+  promptVersion: string;
+  entries: Array<{ key: string; value: GeneralizedSignal }>;
+}
+
+/**
+ * Save the in-memory generalization cache to disk.
+ * Persists to .neon-soul/generalization-cache.json for reuse across process invocations.
+ */
+export function saveGeneralizationCache(workspacePath: string): void {
+  if (generalizationCache.size === 0) {
+    return;
+  }
+
+  const dir = resolve(workspacePath, '.neon-soul');
+  const filePath = resolve(dir, 'generalization-cache.json');
+
+  const entries: Array<{ key: string; value: GeneralizedSignal }> = [];
+  for (const [key, value] of generalizationCache.entries()) {
+    // Serialize Date objects in signal source to ISO strings
+    const serializedValue: GeneralizedSignal = {
+      ...value,
+      original: {
+        ...value.original,
+        source: {
+          ...value.original.source,
+          extractedAt: value.original.source.extractedAt instanceof Date
+            ? value.original.source.extractedAt.toISOString() as unknown as Date
+            : value.original.source.extractedAt,
+        },
+      },
+    };
+    entries.push({ key, value: serializedValue });
+  }
+
+  const cacheFile: GeneralizationCacheFile = {
+    version: 1,
+    promptVersion: PROMPT_VERSION,
+    entries,
+  };
+
+  try {
+    writeFileAtomic(filePath, JSON.stringify(cacheFile));
+    logger.info(`[generalizer] Saved ${entries.length} cache entries to disk`);
+  } catch (error) {
+    logger.warn('[generalizer] Failed to save cache to disk', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+/**
+ * Load the generalization cache from disk into memory.
+ * Skips entries if promptVersion doesn't match current PROMPT_VERSION.
+ */
+export function loadGeneralizationCache(workspacePath: string): void {
+  const filePath = resolve(workspacePath, '.neon-soul', 'generalization-cache.json');
+
+  if (!existsSync(filePath)) {
+    return;
+  }
+
+  try {
+    const content = readFileSync(filePath, 'utf-8');
+    const cacheFile = JSON.parse(content) as GeneralizationCacheFile;
+
+    // Invalidate if prompt version changed
+    if (cacheFile.promptVersion !== PROMPT_VERSION) {
+      logger.info(`[generalizer] Disk cache invalidated (prompt version: ${cacheFile.promptVersion} → ${PROMPT_VERSION})`);
+      return;
+    }
+
+    let loaded = 0;
+    for (const { key, value } of cacheFile.entries) {
+      // Re-hydrate Date objects
+      if (value.original?.source?.extractedAt) {
+        value.original.source.extractedAt = new Date(value.original.source.extractedAt as unknown as string);
+      }
+      generalizationCache.set(key, value);
+      loaded++;
+    }
+
+    logger.info(`[generalizer] Loaded ${loaded} cache entries from disk`);
+  } catch (error) {
+    logger.warn('[generalizer] Failed to load cache from disk (starting empty)', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+/**
+ * Delete the generalization cache file from disk.
+ */
+export function deleteGeneralizationCacheFile(workspacePath: string): void {
+  const filePath = resolve(workspacePath, '.neon-soul', 'generalization-cache.json');
+  if (existsSync(filePath)) {
+    unlinkSync(filePath);
+    logger.debug('[generalizer] Deleted cache file from disk');
+  }
 }

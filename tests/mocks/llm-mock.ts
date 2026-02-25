@@ -322,13 +322,96 @@ export function createMockLLM(config: MockLLMConfig = {}): MockLLMProvider {
   }
 
   /**
-   * Mock generate() for signal generalization.
-   * Transforms specific statements into abstract principles.
+   * Mock generate() for signal generalization and batch detection.
+   * Handles:
+   * - Batch identity signal detection (echo-back approach)
+   * - Signal generalization (transforms to abstract principles)
    */
   async function generate(prompt: string): Promise<GenerationResult> {
     // Simulate async delay if configured
     if (delayMs > 0) {
       await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+
+    // Handle structured classification prompts (combined dimension/importance/stance)
+    // These contain "<signal>" and ask for JSON with all 3 fields
+    if (prompt.includes('<signal>') && prompt.includes('"dimension"') && prompt.includes('"importance"') && prompt.includes('"stance"')) {
+      // Extract signal text from <signal> tags
+      const signalMatch = prompt.match(/<signal>\s*([\s\S]*?)\s*<\/signal>/);
+      const signalText = signalMatch?.[1]?.toLowerCase() ?? '';
+
+      // Infer dimension from keywords
+      let dimension = 'identity-core'; // default
+      for (const [keyword, dim] of Object.entries(DEFAULT_DIMENSION_HINTS)) {
+        if (signalText.includes(keyword)) {
+          dimension = dim;
+          break;
+        }
+      }
+
+      // Infer importance from keywords
+      let importance = 'supporting'; // default
+      if (/\b(core|fundamental|above all|most important)\b/.test(signalText)) {
+        importance = 'core';
+      } else if (/\b(also|incidentally|by the way)\b/.test(signalText)) {
+        importance = 'peripheral';
+      }
+
+      // Infer stance from keywords
+      let stance = 'assert'; // default
+      if (/\b(never|don't|won't|refuse)\b/.test(signalText)) {
+        stance = 'deny';
+      } else if (/\b(maybe|perhaps|wonder|might)\b/.test(signalText)) {
+        stance = 'question';
+      } else if (/\b(sometimes|when|in certain|depends)\b/.test(signalText)) {
+        stance = 'qualify';
+      } else if (/\b(on one hand|but also|tension|conflict)\b/.test(signalText)) {
+        stance = 'tensioning';
+      }
+
+      // Record the call
+      if (recordCalls) {
+        calls.push({
+          prompt,
+          categories: ['generate'] as const,
+          context: 'structured-classification',
+          result: { category: 'generate', confidence: 1.0 } as ClassificationResult<unknown>,
+          timestamp: new Date(),
+        });
+      }
+
+      return { text: JSON.stringify({ dimension, importance, stance }) };
+    }
+
+    // Handle batch identity signal detection prompts (echo-back approach)
+    // These contain "<lines>" and ask for identity signals
+    if (prompt.includes('<lines>') && prompt.includes('identity signal')) {
+      const linesMatch = prompt.match(/<lines>\s*([\s\S]*?)\s*<\/lines>/);
+      if (linesMatch) {
+        const lines = (linesMatch[1] ?? '').split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        const signalLines: string[] = [];
+        for (const line of lines) {
+          const text = line.toLowerCase();
+          // Identity keywords that suggest a real signal
+          const hasIdentityKeyword = /\b(believe|prefer|value|goal|aspire|honest|trust|important|matters|always|never|refuse|boundary|growth|learn|improve|relationship|connect|like|dislike)\b/.test(text);
+          // Default to "yes" for tests (matches old classify behavior),
+          // but filter out obvious non-signals if they have no identity keywords
+          if (hasIdentityKeyword || text.length > 20) {
+            signalLines.push(line); // Echo back the line as-is
+          }
+        }
+        // Record the call
+        if (recordCalls) {
+          calls.push({
+            prompt,
+            categories: ['generate'] as const,
+            context: 'batch-identity-detection',
+            result: { category: 'generate', confidence: 1.0 } as ClassificationResult<unknown>,
+            timestamp: new Date(),
+          });
+        }
+        return { text: signalLines.length > 0 ? signalLines.join('\n') : 'none' };
+      }
     }
 
     // Extract the signal text from the prompt (between <signal_text> tags)

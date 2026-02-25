@@ -36,6 +36,9 @@ interface CommandOptions {
   dryRun: boolean;
   // M-1 FIX: Removed unused 'diff' option - was parsed but never used
   verbose: boolean;
+  reset: boolean;
+  includeSoul: boolean;
+  timeBudgetMinutes: number;
 }
 
 /**
@@ -54,6 +57,9 @@ function parseArgs(args: string[]): CommandOptions {
     force: false,
     dryRun: false,
     verbose: false,
+    reset: false,
+    includeSoul: false,
+    timeBudgetMinutes: parseInt(process.env['NEON_SOUL_TIME_BUDGET'] ?? '20', 10),
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -89,6 +95,18 @@ function parseArgs(args: string[]): CommandOptions {
       case '--verbose':
         options.verbose = true;
         break;
+      case '--reset':
+        options.reset = true;
+        break;
+      case '--include-soul':
+        options.includeSoul = true;
+        break;
+      case '--time-budget':
+        if (next) {
+          options.timeBudgetMinutes = parseInt(next, 10);
+          i++;
+        }
+        break;
       case '--help':
       case '-h':
         printHelp();
@@ -116,6 +134,13 @@ Options:
                          - notated: LLM-generated CJK/emoji/math (default)
   --force                Run even if below content threshold
   --dry-run              Preview changes without writing
+  --reset                Clear all synthesis data and re-extract from scratch
+  --include-soul         Include existing SOUL.md as input source
+                         (for bootstrapping from hand-crafted files)
+  --time-budget <min>    Time budget in minutes (default: 20).
+                         Adaptively limits session extraction to
+                         ensure synthesis completes within budget.
+                         Also: NEON_SOUL_TIME_BUDGET env var.
   --verbose              Show detailed progress
   --help, -h             Show this help message
 
@@ -147,6 +172,9 @@ async function runSynthesisWithLLM(options: CommandOptions, llm: LLMProvider): P
     format: options.format,
     force: options.force,
     dryRun: options.dryRun,
+    reset: options.reset,
+    includeSoul: options.includeSoul,
+    timeBudgetMinutes: options.timeBudgetMinutes,
   };
 
   const result = await runPipeline(pipelineOptions);
@@ -222,6 +250,7 @@ export async function run(
   message?: string;
   data?: unknown;
   error?: string;
+  telemetry?: unknown;
 }> {
   // Validate LLM provider from skill context
   if (!context?.llm) {
@@ -237,11 +266,43 @@ export async function run(
     format: options.format,
     force: options.force,
     dryRun: options.dryRun,
+    reset: options.reset,
+    includeSoul: options.includeSoul,
+    timeBudgetMinutes: options.timeBudgetMinutes,
     // M-1 FIX: Removed showDiff - was never used by pipeline
   };
 
   try {
     const result = await runPipeline(pipelineOptions);
+
+    // Build telemetry data for JSON output
+    const telemetryData = result.telemetry ? {
+      model: result.telemetry.model,
+      totalRequests: result.telemetry.totalRequests,
+      classifyRequests: result.telemetry.classifyRequests,
+      generateRequests: result.telemetry.generateRequests,
+      successCount: result.telemetry.successCount,
+      failCount: result.telemetry.failCount,
+      timeoutCount: result.telemetry.timeoutCount,
+      totalLLMTimeMs: result.telemetry.totalLLMTimeMs,
+      avgDurationMs: result.telemetry.avgDurationMs,
+      maxDurationMs: result.telemetry.maxDurationMs,
+      stages: result.telemetry.stages.map(s => ({
+        stage: s.stage,
+        requests: s.requestCount,
+        ok: s.successCount,
+        fail: s.failCount,
+        timeout: s.timeoutCount,
+        totalMs: s.totalDurationMs,
+        avgMs: s.avgDurationMs,
+        maxMs: s.maxDurationMs,
+      })),
+    } : undefined;
+
+    // Log the telemetry report to stderr (always visible, won't pollute JSON stdout)
+    if (result.context.telemetry) {
+      process.stderr.write(result.context.telemetry.formatReport());
+    }
 
     if (result.success && !result.skipped) {
       return {
@@ -253,16 +314,19 @@ export async function run(
           signalCount: result.metrics?.signalCount,
           compressionRatio: result.metrics?.compressionRatio,
         },
+        telemetry: telemetryData,
       };
     } else if (result.skipped) {
       return {
         success: true,
         message: `Skipped: ${result.skipReason}`,
+        telemetry: telemetryData,
       };
     } else {
       return {
         success: false,
         error: result.error?.message ?? 'Unknown error',
+        telemetry: telemetryData,
       };
     }
   } catch (error) {
@@ -273,7 +337,7 @@ export async function run(
   }
 }
 
-// Run if executed directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Run if executed directly (skip in bundle — NEON_SOUL_BUNDLED is set by build-skill.mjs)
+if (!process.env['NEON_SOUL_BUNDLED'] && import.meta.url === `file://${process.argv[1]}`) {
   main().catch(console.error);
 }
