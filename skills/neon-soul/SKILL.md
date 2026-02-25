@@ -1,6 +1,6 @@
 ---
 name: NEON-SOUL
-version: 0.3.1
+version: 0.4.3
 description: Automated soul synthesis for AI agents. Extracts identity from memory and session logs, promotes recurring patterns to axioms (N>=3), generates SOUL.md with full provenance tracking. Bundled processing engine — no manual Q&A needed.
 homepage: https://liveneon.ai
 user-invocable: true
@@ -11,7 +11,17 @@ metadata:
       stateDirs:
         - memory/
         - .neon-soul/
-    requires: {}
+      readPaths:
+        - ~/.openclaw/agents/main/sessions/
+      writePaths:
+        - SOUL.md
+        - .neon-soul/backups/
+    requires:
+      node: ">=22.0.0"
+      services:
+        - name: ollama
+          url: http://localhost:11434
+          optional: false
 tags:
   - soul
   - soul-synthesis
@@ -59,8 +69,8 @@ The script auto-detects Ollama, reads memory files and session logs, extracts si
 - `--force` — Run even if no new sources detected
 - `--dry-run` — Preview changes without writing
 - `--include-soul` — Include existing SOUL.md as input (for bootstrapping from hand-crafted files)
-- `--memory-path <path>` — Override memory directory
-- `--output-path <path>` — Override SOUL.md location
+- `--memory-path <path>` — Custom memory directory path
+- `--output-path <path>` — Custom SOUL.md output path
 - `--time-budget <minutes>` — Time budget for synthesis (default: 20). Adaptively limits session extraction based on observed LLM speed to ensure synthesis completes within budget
 - `--verbose` — Show detailed progress
 
