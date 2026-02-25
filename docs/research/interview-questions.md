@@ -1,7 +1,13 @@
 # NEON-SOUL Interview Question Bank
 
+> **⚠️ ARCHIVED (2026-02-25)**: This research is for a feature that was never implemented.
+> The interview modules (`interview.ts`, `question-bank.ts`) were removed in the 2026-02-25 rewrite.
+> NEON-SOUL now uses passive-only signal extraction from sessions and memory files.
+> See [Interview Module Removal](../architecture/interview-module-removal.md) for rationale.
+> This document is retained as historical context for why proactive questioning was considered.
+
 **Date**: 2026-02-07
-**Status**: Draft
+**Status**: Archived (feature removed)
 **Phase**: 2.3 Interview Flow Design
 
 ---

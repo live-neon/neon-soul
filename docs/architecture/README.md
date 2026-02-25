@@ -679,5 +679,6 @@ Several files exceed the 200-line MCE limit. This is acknowledged technical debt
 ## Related Documentation
 
 - **[Synthesis Philosophy](synthesis-philosophy.md)** - Design choices and limitations of the synthesis pipeline
+- **[Synthesis Data Flow](synthesis-data-flow.md)** - Stage-by-stage pipeline data analysis
 - **[Soul Bootstrap Proposal](../proposals/soul-bootstrap-pipeline-proposal.md)** - Authoritative design document
 - **[Issues Registry](../issues/)** - Active issues and tech debt tracking
