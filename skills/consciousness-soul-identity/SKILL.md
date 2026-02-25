@@ -1,6 +1,6 @@
 ---
 name: consciousness-soul-identity
-version: 0.3.1
+version: 0.4.0
 description: Discover who you're becoming through your own experience. Automated soul synthesis that reads your memory, finds the patterns you keep returning to, and builds an identity document grounded in evidence — not assumptions.
 homepage: https://liveneon.ai
 user-invocable: true
