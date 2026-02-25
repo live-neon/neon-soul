@@ -9,7 +9,6 @@
 
 export { loadConfig, type NeonSoulConfig } from './lib/config.js';
 export {
-  cosineSimilarity,
   findBestMatch,
   DEFAULT_MATCH_THRESHOLD,
   type MatchResult,
@@ -60,15 +59,6 @@ export {
   formatMetricsReport,
   type CompressionMetrics,
 } from './lib/metrics.js';
-export {
-  TrajectoryTracker,
-  calculateStyleMetrics,
-  formatTrajectoryReport,
-  type TrajectoryPoint,
-  type TrajectoryMetrics,
-  type StyleMetrics,
-} from './lib/trajectory.js';
-
 export type {
   Signal,
   SignalSource,

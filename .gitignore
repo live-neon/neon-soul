@@ -26,9 +26,16 @@ skills/**/.env
 experiments/*/checkpoints/
 experiments/*/logs/
 
+# Generated output
+output/
+
 # Test-generated artifacts
 tests/e2e/fixtures/**/SOUL*.md
 tests/e2e/fixtures/**/.neon-soul/
+coverage/
+
+# Build caches
+*.tsbuildinfo
 
 # Website build output
 website/output/
