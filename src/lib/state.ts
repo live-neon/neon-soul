@@ -33,6 +33,15 @@ export interface SynthesisState {
   };
   /** Track processed session files for incremental ingestion */
   processedSessions: Record<string, SessionFileState>;
+  /** Cache metadata for reflective synthesis (principle store rehydration) */
+  reflectionCache?: {
+    /** Signal IDs that have been processed through the principle store */
+    processedSignalIds: string[];
+    /** Model used when building the cache (invalidate if changed) */
+    model: string;
+    /** Similarity threshold used (invalidate if changed) */
+    principleThreshold: number;
+  };
   metrics: {
     totalSignalsProcessed: number;
     totalPrinciplesGenerated: number;
@@ -88,6 +97,7 @@ export function loadState(workspacePath: string): SynthesisState {
         ...parsed.lastRun,
       },
       processedSessions: parsed.processedSessions ?? {},
+      ...(parsed.reflectionCache && { reflectionCache: parsed.reflectionCache }),
       metrics: {
         ...DEFAULT_STATE.metrics,
         ...parsed.metrics,

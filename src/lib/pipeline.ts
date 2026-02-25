@@ -31,7 +31,8 @@ import { runReflectiveLoop } from './reflection-loop.js';
 import { generateSoul as generateSoulContent } from './soul-generator.js';
 import { backupFile, commitSoulUpdate } from './backup.js';
 import { loadState, saveState, clearState } from './state.js';
-import { saveSynthesisData, loadSignals, clearSynthesisData, writeFileAtomic } from './persistence.js';
+import { saveSynthesisData, loadSignals, loadPrinciples, clearSynthesisData, writeFileAtomic } from './persistence.js';
+import { loadGeneralizationCache, saveGeneralizationCache, deleteGeneralizationCacheFile } from './signal-generalizer.js';
 import type { MemoryFile } from './memory-walker.js';
 import { logger } from './logger.js';
 import { LLMTelemetry, type TelemetrySummary } from './llm-telemetry.js';
@@ -155,6 +156,8 @@ export interface PipelineContext {
   telemetry?: LLMTelemetry;
   /** LLM telemetry summary (included in final result) */
   telemetrySummary?: TelemetrySummary;
+  /** Processed signal IDs from reflective synthesis (for cache persistence) */
+  reflectionProcessedSignalIds?: string[];
 }
 
 /**
@@ -436,11 +439,12 @@ async function collectSources(
   // Extract workspace path from memory path (C-1 fix)
   const workspacePath = getWorkspacePath(memoryPath);
 
-  // Handle --reset: clear all synthesis data before collecting
+  // Handle --reset: clear all synthesis data and caches before collecting
   if (reset) {
-    logger.info('Reset mode: clearing all synthesis data');
+    logger.info('Reset mode: clearing all synthesis data and caches');
     clearSynthesisData(workspacePath);
     clearState(workspacePath);
+    deleteGeneralizationCacheFile(workspacePath);
   }
 
   // Collect sources from workspace (skips SOUL.md unless --include-soul)
@@ -790,11 +794,14 @@ async function extractSignals(
 /**
  * Stage: Single-pass reflective synthesis.
  * Architecture (2026-02-10): Single-pass replaces iterative loop.
+ * Cache: Loads generalization cache from disk and rehydrates principle store
+ * from previous run to skip already-processed signals.
  */
 async function reflectiveSynthesis(
   context: PipelineContext
 ): Promise<PipelineContext> {
   const { llm } = context.options;
+  const workspacePath = getWorkspacePath(context.options.memoryPath);
 
   // Skip if no signals extracted
   if (!context.signals || context.signals.length === 0) {
@@ -805,10 +812,56 @@ async function reflectiveSynthesis(
     return context;
   }
 
+  // Load generalization cache from disk (populates in-memory LRU)
+  loadGeneralizationCache(workspacePath);
+
+  // Determine if we can rehydrate the principle store from cache
+  let cachedPrinciples: Principle[] | undefined;
+  let cachedProcessedSignalIds: string[] | undefined;
+  const isReset = context.incremental?.isReset ?? false;
+
+  if (!isReset) {
+    const state = loadState(workspacePath);
+    const cache = state.reflectionCache;
+
+    if (cache && cache.processedSignalIds.length > 0) {
+      const modelId = llm.getModelId?.() ?? 'unknown';
+
+      // Validate cache: model and threshold must match
+      if (cache.model !== modelId) {
+        logger.info(`[synthesis] Cache invalidated: model changed (${cache.model} → ${modelId})`);
+      } else if (cache.principleThreshold !== 0.75) {
+        // Default threshold — if it changes, invalidate
+        logger.info(`[synthesis] Cache invalidated: threshold changed`);
+      } else {
+        // Check for signal removal: all cached signal IDs must still be present
+        const currentSignalIds = new Set(context.signals.map(s => s.id));
+        const removedSignals = cache.processedSignalIds.filter(id => !currentSignalIds.has(id));
+
+        if (removedSignals.length > 0) {
+          logger.info(
+            `[synthesis] Cache invalidated: ${removedSignals.length} signals removed — full principle rebuild`
+          );
+        } else {
+          // Cache is valid — load principles and processed IDs
+          const principles = loadPrinciples(workspacePath);
+          if (principles.length > 0) {
+            cachedPrinciples = principles;
+            cachedProcessedSignalIds = cache.processedSignalIds;
+          }
+        }
+      }
+    }
+  } else {
+    logger.info('[synthesis] Reset mode: skipping cache, full rebuild');
+  }
+
   // Run single-pass synthesis with LLM provider
   context.options.onProgress?.('reflective-synthesis', 10, 'Starting single-pass synthesis...');
 
   const result = await runReflectiveLoop(llm, context.signals, {
+    ...(cachedPrinciples && { cachedPrinciples }),
+    ...(cachedProcessedSignalIds && { cachedProcessedSignalIds }),
     onComplete: () => {
       context.options.onProgress?.(
         'reflective-synthesis',
@@ -817,6 +870,14 @@ async function reflectiveSynthesis(
       );
     },
   });
+
+  // Save generalization cache to disk for next run
+  saveGeneralizationCache(workspacePath);
+
+  // Store processed signal IDs on context for persistence in validateOutput
+  if (result.processedSignalIds) {
+    context.reflectionProcessedSignalIds = result.processedSignalIds;
+  }
 
   context.principles = result.principles;
   context.axioms = result.axioms;
@@ -903,6 +964,15 @@ async function validateOutput(
           };
         }
       }
+    }
+
+    // Persist reflection cache for principle store rehydration on next run
+    if (context.reflectionProcessedSignalIds) {
+      state.reflectionCache = {
+        processedSignalIds: context.reflectionProcessedSignalIds,
+        model: context.options.llm.getModelId?.() ?? 'unknown',
+        principleThreshold: 0.75,
+      };
     }
 
     saveState(workspacePath, state);
