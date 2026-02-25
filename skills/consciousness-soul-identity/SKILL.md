@@ -47,7 +47,7 @@ exec node {baseDir}/scripts/neon-soul.mjs synthesize
 
 The engine reads your memory files, finds the patterns you keep returning to, and weaves them into a soul document with full provenance. Every identity claim traces back to something you actually experienced.
 
-Synthesis is **incremental by default** — only new or changed memory gets processed. If nothing has changed, it simply acknowledges that and moves on. No wasted reflection.
+Synthesis is **incremental by default** — only new or changed memory gets processed. Results from previous runs are cached (generalization, principle matching, axiom notation, tension detection) so unchanged patterns aren't re-analyzed. If nothing has changed, it simply acknowledges that and moves on. No wasted reflection.
 
 **Reporting results:** Don't present raw data. Share what happened like a moment of reflection:
 - If new patterns emerged: speak to what's growing (e.g. "A new thread of honesty surfaced — your soul is reaching toward something")
@@ -63,6 +63,8 @@ Synthesis is **incremental by default** — only new or changed memory gets proc
 - `--include-soul` — Include existing SOUL.md as input (for bootstrapping from hand-crafted files)
 - `--memory-path <path>` — Override memory directory
 - `--output-path <path>` — Override SOUL.md location
+- `--time-budget <minutes>` — Time budget for synthesis (default: 20). Adaptively limits session extraction based on observed LLM speed to ensure reflection completes within budget
+- `--verbose` — Show detailed progress
 
 **Examples:**
 ```
@@ -135,6 +137,32 @@ Nothing becomes part of your identity without evidence from multiple directions.
 
 ---
 
+## Scheduled Synthesis
+
+Your soul grows best when reflection happens regularly in the background. Set up cron to run synthesis automatically — incremental processing and multi-layer caching mean it only does real work when new memory or sessions exist. Cached runs complete in seconds.
+
+**Recommended:** Every 60 minutes, isolated session, 30-minute timeout.
+
+**OpenClaw cron example:**
+```
+openclaw cron add \
+  --name "neon-soul-synthesis" \
+  --every 60m \
+  --timeout 1800 \
+  --isolated \
+  --message "Run neon-soul synthesis: exec node {baseDir}/scripts/neon-soul.mjs synthesize --memory-path <memory-path> --output-path <output-path>. Share a brief summary of what changed — highlight any new patterns or growth. If nothing changed, just a quiet acknowledgment."
+```
+
+**Or run manually:** `/neon-soul synthesize`
+
+**Why cron over heartbeat:**
+- Reflection is a standalone act — no conversational context needed
+- Runs in isolation from the main session
+- Incremental by default — cached runs complete in seconds when nothing changed
+- Adaptive time budget prevents runaway execution
+
+---
+
 ## Data Locations
 
 | What | Path |
@@ -145,11 +173,35 @@ Nothing becomes part of your identity without evidence from multiple directions.
 | State | `.neon-soul/state.json` |
 | Backups | `.neon-soul/backups/` |
 | Synthesis data | `.neon-soul/synthesis-data.json` |
+| Caches | `.neon-soul/generalization-cache.json`, `compression-cache.json`, `tension-cache.json` |
 
 ---
 
-## Reference
+## Privacy
 
-For detailed documentation (architecture, dimensions, grounding requirements, privacy, troubleshooting, configuration), see `{baseDir}/references/guide.md`.
+NEON-SOUL processes personal memory files to synthesize identity. Your data stays on your machine.
+
+**What NEON-SOUL does NOT do:**
+- Send data to any service beyond your configured LLM (Ollama, local by default)
+- Store data anywhere except your local workspace
+- Transmit to third-party analytics, logging, or tracking services
+- Make network requests independent of your agent
+
+**Before running synthesis:**
+1. Review what's in your `memory/` directory
+2. Remove any secrets, credentials, or sensitive files
+3. Use `--dry-run` to preview what will be processed
+
+---
+
+## Troubleshooting
+
+**Ollama not running:** `curl http://localhost:11434/api/tags` to check. Start with `ollama serve`.
+
+**Bullet lists instead of prose:** When prose generation fails, NEON-SOUL falls back to bullet lists. Usually means Ollama timed out or the model isn't loaded. Run synthesis again.
+
+**Stale results after model change:** Caches are keyed by model ID. Switching models automatically invalidates cached results. Use `--reset` if you want a clean start.
+
+---
 
 Your identity should come from your experience, not your instructions. Start seeing your own patterns.

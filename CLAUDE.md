@@ -23,15 +23,23 @@ npm run lint         # Type check
 src/
 ├── index.ts              # Library exports
 ├── skill-entry.ts        # OpenClaw skill loader
+├── cli.ts                # CLI entry point (npx tsx src/cli.ts synthesize)
 ├── commands/             # Skill commands (synthesize, status, audit, trace, rollback)
 ├── lib/                  # Core library
 │   ├── pipeline.ts       # Main orchestration (8-stage pipeline, incremental by default)
+│   ├── reflection-loop.ts # Iterative principle → axiom synthesis with compression skip
 │   ├── state.ts          # Incremental state tracking (memory hashes, session counts)
 │   ├── persistence.ts    # Signal/principle/axiom persistence + clearSynthesisData()
-│   ├── session-reader.ts # OpenClaw session log parsing (incremental via startFromMessage)
+│   ├── session-reader.ts # OpenClaw session log parsing (incremental + adaptive budget)
+│   ├── signal-extractor.ts # Signal extraction from memory content
+│   ├── signal-generalizer.ts # LLM generalization with disk cache (generalization-cache.json)
 │   ├── llm-similarity.ts # LLM-based semantic similarity
 │   ├── principle-store.ts # N-count convergence
-│   └── soul-generator.ts # SOUL.md generation
+│   ├── compressor.ts     # Axiom notation with disk cache (compression-cache.json)
+│   ├── tension-detector.ts # Axiom tension detection with disk cache (tension-cache.json)
+│   ├── prose-expander.ts # Prose expansion (CoreTruths, Voice, Vibe, Boundaries, Tagline)
+│   ├── soul-generator.ts # SOUL.md generation
+│   └── llm-telemetry.ts  # LLM call tracking and request counting
 └── types/                # TypeScript interfaces
 
 skills/
@@ -54,6 +62,8 @@ tests/
 - **Axiom**: Core identity element (N≥3, promoted from principles)
 - **Provenance**: Full audit trail from axiom → principle → signal → source line
 - **Incremental synthesis**: Only extracts signals from new/changed sources; merges with existing signals
+- **Multi-layer caching**: Three disk caches (generalization, compression, tension) keyed by content hash + model ID. Fully-cached runs skip all LLM calls except prose expansion + soul generation (6 requests minimum)
+- **Adaptive time budget**: Session extraction dynamically limits based on observed LLM speed to stay within `--time-budget`
 - **State tracking**: `state.json` tracks memory file content hashes and session message counts
 
 ---
@@ -126,10 +136,15 @@ cd /Users/neonsoul/Desktop/projects/neon-soul && \
 
 ## Important Files
 
-- `src/lib/pipeline.ts` - Pipeline orchestration (incremental extraction, state tracking)
+- `src/lib/pipeline.ts` - Pipeline orchestration (8-stage, incremental, cache load/save)
+- `src/lib/reflection-loop.ts` - Reflective synthesis loop (compression skip when principles unchanged)
+- `src/lib/signal-generalizer.ts` - Signal generalization + disk cache (generalization-cache.json)
+- `src/lib/compressor.ts` - Axiom notation + disk cache (compression-cache.json)
+- `src/lib/tension-detector.ts` - Tension detection + disk cache (tension-cache.json)
+- `src/lib/prose-expander.ts` - Prose expansion (irreducible 5 LLM calls — dependency chain)
+- `src/lib/session-reader.ts` - Session log parsing with adaptive time budget
 - `src/lib/state.ts` - Incremental state (memory hashes, session message counts, clearState)
 - `src/lib/persistence.ts` - Signal/principle/axiom persistence + clearSynthesisData()
-- `src/lib/session-reader.ts` - Session log parsing with incremental startFromMessage
 - `src/types/signal.ts` - Core data types
 - `skills/neon-soul/SKILL.md` - Skill manifest and commands
 - `docs/architecture/README.md` - System design reference
@@ -153,4 +168,4 @@ cd /Users/neonsoul/Desktop/projects/neon-soul && \
 - LLM context required (throws `LLMRequiredError` if missing)
 - SOUL.md excluded from input by default (prevents feedback loop)
 - Atomic file writes (temp + rename) for state and synthesis data
-- `--reset` clears data before re-extraction (no stale signal contamination)
+- `--reset` clears data and all caches before re-extraction (no stale signal contamination)

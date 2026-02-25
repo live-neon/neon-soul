@@ -43,7 +43,7 @@ Run the bundled processing engine. This is a single exec command:
 exec node {baseDir}/scripts/neon-soul.mjs synthesize
 ```
 
-Synthesis is **incremental by default** — only new/changed memory files and sessions are processed. Existing signals are preserved and merged with new ones. If nothing changed since the last run, synthesis skips automatically.
+Synthesis is **incremental by default** — only new/changed memory files and sessions are processed. Existing signals are preserved and merged with new ones. Results from previous runs are cached (generalization, principle matching, axiom notation, tension detection) so unchanged data is never re-processed. If nothing changed since the last run, synthesis skips automatically.
 
 The script auto-detects Ollama, reads memory files and session logs, extracts signals, promotes axioms, and generates SOUL.md. It outputs JSON.
 
@@ -55,13 +55,14 @@ The script auto-detects Ollama, reads memory files and session logs, extracts si
 - Keep the tone reflective and warm — this is about the user's identity evolving, not a build log
 
 **Options:**
-- `--reset` — Clear all synthesis data and re-extract from scratch
+- `--reset` — Clear all synthesis data and caches, re-extract from scratch
 - `--force` — Run even if no new sources detected
 - `--dry-run` — Preview changes without writing
 - `--include-soul` — Include existing SOUL.md as input (for bootstrapping from hand-crafted files)
 - `--memory-path <path>` — Override memory directory
 - `--output-path <path>` — Override SOUL.md location
 - `--time-budget <minutes>` — Time budget for synthesis (default: 20). Adaptively limits session extraction based on observed LLM speed to ensure synthesis completes within budget
+- `--verbose` — Show detailed progress
 
 **Examples:**
 ```
@@ -120,6 +121,32 @@ Quick single-axiom provenance lookup.
 
 ---
 
+## Scheduled Synthesis
+
+Set up cron to run synthesis automatically. Incremental processing and multi-layer caching mean it only does real work when new memory or sessions exist — cached runs complete in seconds.
+
+**Recommended:** Every 60 minutes, isolated session, 30-minute timeout.
+
+**OpenClaw cron example:**
+```
+openclaw cron add \
+  --name "neon-soul-synthesis" \
+  --every 60m \
+  --timeout 1800 \
+  --isolated \
+  --message "Run neon-soul synthesis: exec node {baseDir}/scripts/neon-soul.mjs synthesize --memory-path <memory-path> --output-path <output-path>. Share a brief, warm summary of what changed — highlight any new patterns, axioms, or growth. If nothing changed, just a calm one-liner."
+```
+
+**Or run manually:** `/neon-soul synthesize`
+
+**Why cron over heartbeat:**
+- Synthesis is a standalone task — no conversational context needed
+- Runs in isolation from the main session
+- Incremental by default — cached runs complete in seconds when nothing changed
+- Adaptive time budget prevents runaway execution
+
+---
+
 ## Data Locations
 
 | What | Path |
@@ -130,9 +157,31 @@ Quick single-axiom provenance lookup.
 | State | `.neon-soul/state.json` |
 | Backups | `.neon-soul/backups/` |
 | Synthesis data | `.neon-soul/synthesis-data.json` |
+| Caches | `.neon-soul/generalization-cache.json`, `compression-cache.json`, `tension-cache.json` |
 
 ---
 
-## Reference
+## Privacy
 
-For detailed documentation (architecture, privacy, troubleshooting, configuration, dimensions), see `{baseDir}/references/guide.md`.
+NEON-SOUL processes personal memory files to synthesize identity. Your data stays on your machine.
+
+**What NEON-SOUL does NOT do:**
+- Send data to any service beyond your configured LLM (Ollama, local by default)
+- Store data anywhere except your local workspace
+- Transmit to third-party analytics, logging, or tracking services
+- Make network requests independent of your agent
+
+**Before running synthesis:**
+1. Review what's in your `memory/` directory
+2. Remove any secrets, credentials, or sensitive files
+3. Use `--dry-run` to preview what will be processed
+
+---
+
+## Troubleshooting
+
+**Ollama not running:** `curl http://localhost:11434/api/tags` to check. Start with `ollama serve`.
+
+**Bullet lists instead of prose:** When prose generation fails, NEON-SOUL falls back to bullet lists. Usually means Ollama timed out or the model isn't loaded. Run synthesis again.
+
+**Stale results after model change:** Caches are keyed by model ID. Switching models automatically invalidates cached results. Use `--reset` if you want a clean start.
