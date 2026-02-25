@@ -14,14 +14,12 @@ metadata:
     requires: {}
 tags:
   - consciousness
-  - agent-identity
-  - self-awareness
-  - personality
-  - agent-values
-  - introspection
-  - agent-growth
   - identity
-  - soul
+  - introspection
+  - self-awareness
+  - self-learning
+  - autonomous
+  - personality
   - ai-agent
 ---
 
