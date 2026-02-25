@@ -20,6 +20,7 @@ const result = buildSync({
   target: 'node22',
   format: 'esm',
   outfile,
+  minify: true,
   banner: {
     js: [
       '#!/usr/bin/env node',
