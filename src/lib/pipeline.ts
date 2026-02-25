@@ -31,8 +31,10 @@ import { runReflectiveLoop } from './reflection-loop.js';
 import { generateSoul as generateSoulContent } from './soul-generator.js';
 import { backupFile, commitSoulUpdate } from './backup.js';
 import { loadState, saveState, clearState } from './state.js';
-import { saveSynthesisData, loadSignals, loadPrinciples, clearSynthesisData, writeFileAtomic } from './persistence.js';
+import { saveSynthesisData, loadSignals, loadPrinciples, loadAxioms, clearSynthesisData, writeFileAtomic } from './persistence.js';
 import { loadGeneralizationCache, saveGeneralizationCache, deleteGeneralizationCacheFile } from './signal-generalizer.js';
+import { loadCompressionCache, saveCompressionCache, deleteCompressionCacheFile } from './compressor.js';
+import { loadTensionCache, saveTensionCache, clearTensionCache } from './tension-detector.js';
 import type { MemoryFile } from './memory-walker.js';
 import { logger } from './logger.js';
 import { LLMTelemetry, type TelemetrySummary } from './llm-telemetry.js';
@@ -445,6 +447,8 @@ async function collectSources(
     clearSynthesisData(workspacePath);
     clearState(workspacePath);
     deleteGeneralizationCacheFile(workspacePath);
+    deleteCompressionCacheFile(workspacePath);
+    clearTensionCache(workspacePath);
   }
 
   // Collect sources from workspace (skips SOUL.md unless --include-soul)
@@ -830,12 +834,15 @@ async function reflectiveSynthesis(
     return context;
   }
 
-  // Load generalization cache from disk (populates in-memory LRU)
+  // Load all caches from disk (populates in-memory LRUs)
   loadGeneralizationCache(workspacePath);
+  loadCompressionCache(workspacePath);
+  loadTensionCache(workspacePath);
 
   // Determine if we can rehydrate the principle store from cache
   let cachedPrinciples: Principle[] | undefined;
   let cachedProcessedSignalIds: string[] | undefined;
+  let cachedAxioms: Axiom[] | undefined;
   const isReset = context.incremental?.isReset ?? false;
 
   if (!isReset) {
@@ -866,6 +873,12 @@ async function reflectiveSynthesis(
           if (principles.length > 0) {
             cachedPrinciples = principles;
             cachedProcessedSignalIds = cache.processedSignalIds;
+
+            // Also load cached axioms for compression skip
+            const axioms = loadAxioms(workspacePath);
+            if (axioms.length > 0) {
+              cachedAxioms = axioms;
+            }
           }
         }
       }
@@ -880,6 +893,7 @@ async function reflectiveSynthesis(
   const result = await runReflectiveLoop(llm, context.signals, {
     ...(cachedPrinciples && { cachedPrinciples }),
     ...(cachedProcessedSignalIds && { cachedProcessedSignalIds }),
+    ...(cachedAxioms && { cachedAxioms }),
     onComplete: () => {
       context.options.onProgress?.(
         'reflective-synthesis',
@@ -889,8 +903,10 @@ async function reflectiveSynthesis(
     },
   });
 
-  // Save generalization cache to disk for next run
+  // Save all caches to disk for next run
   saveGeneralizationCache(workspacePath);
+  saveCompressionCache(workspacePath);
+  saveTensionCache(workspacePath);
 
   // Store processed signal IDs on context for persistence in validateOutput
   if (result.processedSignalIds) {

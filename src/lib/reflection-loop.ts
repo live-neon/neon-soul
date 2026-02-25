@@ -38,6 +38,8 @@ export interface ReflectiveLoopConfig {
   cachedPrinciples?: Principle[];
   /** Signal IDs already processed in a previous run (skip matching for these) */
   cachedProcessedSignalIds?: string[];
+  /** Cached axioms from a previous run (skip compression when principles unchanged) */
+  cachedAxioms?: Axiom[];
 }
 
 /**
@@ -161,11 +163,31 @@ export async function runReflectiveLoop(
   const principles = store.getPrinciples();
   logger.info(`[synthesis] ${principles.length} principles formed`);
 
-  const compression = await compressPrinciplesWithCascade(llm, principles);
+  // Skip compression entirely if principles unchanged and cached axioms available
+  const { cachedAxioms } = mergedConfig;
+  const canSkipCompression = addedCount === 0 && cachedAxioms && cachedAxioms.length > 0;
+
+  let axioms: Axiom[];
+  let unconverged: Principle[] = [];
+  let effectiveThreshold = 3;
+  let guardrails: GuardrailWarnings = { messages: [], expansionWarning: false, cognitiveLoadWarning: false, fallbackWarning: false };
+
+  if (canSkipCompression) {
+    // Principles unchanged — reuse cached axioms (notation + tensions already computed)
+    axioms = cachedAxioms;
+    logger.info(`[synthesis] Principles unchanged, reusing ${axioms.length} cached axioms (skipping compression)`);
+  } else {
+    const compression = await compressPrinciplesWithCascade(llm, principles);
+    axioms = compression.axioms;
+    unconverged = compression.unconverged;
+    effectiveThreshold = compression.cascade.effectiveThreshold;
+    guardrails = compression.guardrails;
+  }
+
   const durationMs = Date.now() - startTime;
 
-  const compressionRatio = compression.axioms.length > 0
-    ? signals.length / compression.axioms.length
+  const compressionRatio = axioms.length > 0
+    ? signals.length / axioms.length
     : 0;
 
   // PBD Stage 16: Compute provenance distribution from signals
@@ -181,7 +203,7 @@ export async function runReflectiveLoop(
     blocked: 0,
     reasons: {},
   };
-  for (const axiom of compression.axioms) {
+  for (const axiom of axioms) {
     if (axiom.promotable) {
       promotionStats.promotable++;
     } else {
@@ -193,7 +215,7 @@ export async function runReflectiveLoop(
   const echoBlockedAxioms = promotionStats.blocked;
 
   logger.info(
-    `[synthesis] Complete: ${signals.length} signals → ${principles.length} principles → ${compression.axioms.length} axioms ` +
+    `[synthesis] Complete: ${signals.length} signals → ${principles.length} principles → ${axioms.length} axioms ` +
     `(${compressionRatio.toFixed(1)}:1 compression) in ${durationMs}ms`
   );
 
@@ -206,10 +228,10 @@ export async function runReflectiveLoop(
 
   const result: ReflectiveLoopResult = {
     principles,
-    axioms: compression.axioms,
-    unconverged: compression.unconverged,
-    effectiveThreshold: compression.cascade.effectiveThreshold,
-    guardrails: compression.guardrails,
+    axioms,
+    unconverged,
+    effectiveThreshold,
+    guardrails,
     durationMs,
     signalCount: signals.length,
     compressionRatio,

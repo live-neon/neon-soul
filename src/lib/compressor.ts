@@ -3,6 +3,9 @@
  * Generates canonical forms (native/notated).
  */
 
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync, unlinkSync } from 'node:fs';
+import { resolve } from 'node:path';
 import type { Principle } from '../types/principle.js';
 import type {
   Axiom,
@@ -18,6 +21,19 @@ import { logger } from './logger.js';
 import { checkGuardrails, type GuardrailWarnings } from './guardrails.js';
 import { detectTensions, attachTensionsToAxioms } from './tension-detector.js';
 import type { ArtifactProvenance } from '../types/provenance.js';
+import { LRUCache } from 'lru-cache';
+import { writeFileAtomic } from './persistence.js';
+
+/**
+ * LRU cache for axiom notation (CJK/emoji form).
+ * Key: hash(principleText + model)
+ * Persisted to disk between runs.
+ */
+const notationCache = new LRUCache<string, string>({ max: 500 });
+
+function getNotationCacheKey(text: string, model: string): string {
+  return createHash('sha256').update(text + ':' + model).digest('hex').slice(0, 16);
+}
 
 export interface CompressionResult {
   axioms: Axiom[];
@@ -70,10 +86,18 @@ export type { GuardrailWarnings } from './guardrails.js';
  */
 async function generateNotatedForm(
   llm: LLMProvider,
-  text: string
+  text: string,
+  model: string = 'unknown'
 ): Promise<string> {
   if (!llm) {
     throw new LLMRequiredError('generateNotatedForm');
+  }
+
+  // Check notation cache first
+  const cacheKey = getNotationCacheKey(text, model);
+  const cached = notationCache.get(cacheKey);
+  if (cached) {
+    return cached;
   }
 
   const prompt = `Express this principle in compact notation with:
@@ -89,20 +113,24 @@ Example: "🎯 誠: honesty > performance"
 If no clear mathematical relationship, use a brief 2-3 word summary instead.
 Respond with ONLY the formatted notation, nothing else.`;
 
+  let notated: string;
+
   // IM-2 FIX: Use generate() for text generation instead of classify()
   if (llm.generate) {
     const result = await llm.generate(prompt);
-    return result.text.trim() || `📌 理: ${text.slice(0, 30)}`;
+    notated = result.text.trim() || `📌 理: ${text.slice(0, 30)}`;
+  } else {
+    // Fallback for providers without generate(): use classify with reasoning extraction
+    const result = await llm.classify(prompt, {
+      categories: ['notation'] as const,
+      context: 'Notation generation for axiom synthesis',
+    });
+    notated = result.reasoning?.trim() || `📌 理: ${text.slice(0, 30)}`;
   }
 
-  // Fallback for providers without generate(): use classify with reasoning extraction
-  const result = await llm.classify(prompt, {
-    categories: ['notation'] as const,
-    context: 'Notation generation for axiom synthesis',
-  });
-
-  // Extract from reasoning if available, otherwise use placeholder
-  return result.reasoning?.trim() || `📌 理: ${text.slice(0, 30)}`;
+  // Store in cache
+  notationCache.set(cacheKey, notated);
+  return notated;
 }
 
 /**
@@ -220,10 +248,11 @@ function generateAxiomId(): string {
 async function synthesizeAxiom(
   llm: LLMProvider,
   principle: Principle,
-  criteria: PromotionCriteria = DEFAULT_PROMOTION_CRITERIA
+  criteria: PromotionCriteria = DEFAULT_PROMOTION_CRITERIA,
+  model: string = 'unknown'
 ): Promise<Axiom> {
-  // Generate notated form with single LLM call
-  const notated = await generateNotatedForm(llm, principle.text);
+  // Generate notated form with single LLM call (cached by text + model)
+  const notated = await generateNotatedForm(llm, principle.text, model);
 
   const canonical: CanonicalForm = {
     native: principle.text,
@@ -280,14 +309,15 @@ async function synthesizeAxiom(
 export async function compressPrinciples(
   llm: LLMProvider,
   principles: Principle[],
-  nThreshold: number = 3
+  nThreshold: number = 3,
+  model: string = 'unknown'
 ): Promise<CompressionResult> {
   const axiomPromises: Promise<Axiom>[] = [];
   const unconverged: Principle[] = [];
 
   for (const principle of principles) {
     if (principle.n_count >= nThreshold) {
-      axiomPromises.push(synthesizeAxiom(llm, principle));
+      axiomPromises.push(synthesizeAxiom(llm, principle, DEFAULT_PROMOTION_CRITERIA, model));
     } else {
       unconverged.push(principle);
     }
@@ -445,7 +475,8 @@ export async function compressPrinciplesWithCascade(
   }
 
   // Run actual compression with the selected threshold
-  const result = await compressPrinciples(llm, principles, effectiveThreshold);
+  const modelId = llm.getModelId?.() ?? 'unknown';
+  const result = await compressPrinciples(llm, principles, effectiveThreshold, modelId);
 
   // Centrality exemption: promote defining principles even if below threshold
   // A principle with centrality=defining has 50%+ core-importance signals — it's
@@ -460,7 +491,7 @@ export async function compressPrinciplesWithCascade(
       !promotedIds.has(p.id)
     );
     for (const p of exemptPrinciples) {
-      result.axioms.push(await synthesizeAxiom(llm, p));
+      result.axioms.push(await synthesizeAxiom(llm, p, DEFAULT_PROMOTION_CRITERIA, modelId));
       logger.info(`[compressor] Centrality exemption: promoted "${p.text.slice(0, 60)}..." (N=${p.n_count}, centrality=defining)`);
     }
   }
@@ -489,7 +520,7 @@ export async function compressPrinciplesWithCascade(
   }
 
   // PBD Stage 5: Detect tensions between axioms
-  const tensions = await detectTensions(llm, finalAxioms);
+  const tensions = await detectTensions(llm, finalAxioms, modelId);
   if (tensions.length > 0) {
     finalAxioms = attachTensionsToAxioms(finalAxioms, tensions);
   }
@@ -519,4 +550,95 @@ export async function compressPrinciplesWithCascade(
     guardrails,
     pruned: prunedAxioms,
   };
+}
+
+/**
+ * Compression cache file format.
+ */
+interface CompressionCacheFile {
+  version: 1;
+  model: string;
+  notations: Record<string, string>;
+}
+
+/**
+ * Save the notation cache to disk.
+ * Persists to .neon-soul/compression-cache.json for reuse across process invocations.
+ */
+export function saveCompressionCache(workspacePath: string): void {
+  if (notationCache.size === 0) {
+    return;
+  }
+
+  const filePath = resolve(workspacePath, '.neon-soul', 'compression-cache.json');
+
+  const notations: Record<string, string> = {};
+  for (const [key, value] of notationCache.entries()) {
+    notations[key] = value;
+  }
+
+  // Extract model from any cache key (all keys share the same model)
+  const firstKey = notationCache.keys().next().value as string | undefined;
+  const model = firstKey ?? 'unknown';
+
+  const cacheFile: CompressionCacheFile = {
+    version: 1,
+    model,
+    notations,
+  };
+
+  try {
+    writeFileAtomic(filePath, JSON.stringify(cacheFile));
+    logger.info(`[compressor] Saved ${Object.keys(notations).length} notation cache entries to disk`);
+  } catch (error) {
+    logger.warn('[compressor] Failed to save compression cache to disk', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+/**
+ * Load the notation cache from disk into memory.
+ */
+export function loadCompressionCache(workspacePath: string): void {
+  const filePath = resolve(workspacePath, '.neon-soul', 'compression-cache.json');
+
+  if (!existsSync(filePath)) {
+    return;
+  }
+
+  try {
+    const content = readFileSync(filePath, 'utf-8');
+    const cacheFile = JSON.parse(content) as CompressionCacheFile;
+
+    let loaded = 0;
+    for (const [key, value] of Object.entries(cacheFile.notations)) {
+      notationCache.set(key, value);
+      loaded++;
+    }
+
+    logger.info(`[compressor] Loaded ${loaded} notation cache entries from disk`);
+  } catch (error) {
+    logger.warn('[compressor] Failed to load compression cache from disk (starting empty)', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+/**
+ * Delete the compression cache file from disk.
+ */
+export function deleteCompressionCacheFile(workspacePath: string): void {
+  const filePath = resolve(workspacePath, '.neon-soul', 'compression-cache.json');
+  if (existsSync(filePath)) {
+    unlinkSync(filePath);
+    logger.debug('[compressor] Deleted compression cache file from disk');
+  }
+}
+
+/**
+ * Clear the in-memory notation cache.
+ */
+export function clearNotationCache(): void {
+  notationCache.clear();
 }

@@ -152,7 +152,7 @@ Signal merge: 25 existing → 25 after stale removal + 0 new = 25 total
 | Incremental (2 new signals) | 35 | 314s | **57% fewer requests, 58% faster** |
 | Fully cached (0 new) | 27 | 238s | **67% fewer requests, 68% faster** |
 
-The irreducible floor of ~27 requests comes from compression (6 axiom notations + 15 tension pair checks) + prose expansion (5) + soul generation (1). These phases operate on the full principle/axiom set and run every time regardless of cache state.
+The ~27 requests came from compression (6 axiom notations + 15 tension pair checks) + prose expansion (5) + soul generation (1). Compression was subsequently cached — see `2026-02-24-compression-cache.md`.
 
 ---
 
@@ -226,5 +226,6 @@ As new signals are extracted each iteration, `newSignals.length` grows and `newD
 
 ## Related
 
-- Adaptive time budget (2026-02-24-adaptive-time-budget.md) — controls how many sessions are extracted per run
+- Compression cache (`2026-02-24-compression-cache.md`) — Layer 2 caching for axiom notation + tension detection, reduces fully-cached runs from 27 → 6 requests
+- Adaptive time budget (`2026-02-24-adaptive-time-budget.md`) — controls how many sessions are extracted per run
 - State tracking fix (commit 236ec90) — ensures budget-skipped sessions are picked up on next run
