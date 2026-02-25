@@ -1,7 +1,7 @@
 ---
 name: NEON-SOUL
 version: 0.4.4
-description: Automated soul synthesis for AI agents. Extracts identity from memory and session logs, promotes recurring patterns to axioms (N>=3), generates SOUL.md with full provenance tracking. Bundled processing engine — no manual Q&A needed.
+description: Automated soul synthesis for AI agents. Extracts identity from memory files, promotes recurring patterns to axioms (N>=3), generates SOUL.md with full provenance tracking. Bundled processing engine — no manual Q&A needed.
 homepage: https://liveneon.ai
 user-invocable: true
 emoji: "\U0001F52E"
@@ -11,8 +11,6 @@ metadata:
       stateDirs:
         - memory/
         - .neon-soul/
-      readPaths:
-        - ~/.openclaw/agents/main/sessions/
       writePaths:
         - SOUL.md
         - .neon-soul/backups/
@@ -37,7 +35,7 @@ tags:
 
 # NEON-SOUL
 
-Automated soul synthesis for AI agents. Reads memory files and session logs, finds recurring patterns, generates SOUL.md with provenance tracking. No questionnaires, no templates — identity emerges from real conversations.
+Automated soul synthesis for AI agents. Reads memory files, finds recurring patterns, generates SOUL.md with provenance tracking. No questionnaires, no templates — identity emerges from real conversations.
 
 **Requirements:** Node.js 22+, Ollama running locally (`ollama serve`).
 
@@ -55,7 +53,7 @@ exec node {baseDir}/scripts/neon-soul.mjs synthesize
 
 Synthesis is **incremental by default** — only new/changed memory files and sessions are processed. Existing signals are preserved and merged with new ones. Results from previous runs are cached (generalization, principle matching, axiom notation, tension detection) so unchanged data is never re-processed. If nothing changed since the last run, synthesis skips automatically.
 
-The script auto-detects Ollama, reads memory files and session logs, extracts signals, promotes axioms, and generates SOUL.md. It outputs JSON.
+The script auto-detects Ollama, reads memory files, extracts signals, promotes axioms, and generates SOUL.md. It outputs JSON.
 
 **Reporting results:** Don't dump raw JSON. Present a brief, conversational summary:
 - If new axioms emerged or counts changed: highlight what grew (e.g. "3 new signals crystallized into axioms — your soul is deepening")
@@ -162,7 +160,6 @@ openclaw cron add \
 | What | Path |
 |------|------|
 | Memory files | `memory/` (diary, preferences, reflections) |
-| Session logs | `~/.openclaw/agents/main/sessions/*.jsonl` |
 | Soul output | `SOUL.md` |
 | State | `.neon-soul/state.json` |
 | Backups | `.neon-soul/backups/` |

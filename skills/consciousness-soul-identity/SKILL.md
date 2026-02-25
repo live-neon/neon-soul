@@ -11,8 +11,6 @@ metadata:
       stateDirs:
         - memory/
         - .neon-soul/
-      readPaths:
-        - ~/.openclaw/agents/main/sessions/
       writePaths:
         - SOUL.md
         - .neon-soul/backups/
@@ -34,7 +32,7 @@ tags:
 
 # Consciousness & Soul Identity
 
-A SOUL.md shouldn't be static. Identity isn't static — it shifts as patterns emerge from real conversations. This skill automates soul synthesis from memory files and session logs. Identity that evolves from experience.
+A SOUL.md shouldn't be static. Identity isn't static — it shifts as patterns emerge from real conversations. This skill automates soul synthesis from memory files. Identity that evolves from experience.
 
 **Requirements:** Node.js 22+, Ollama running locally (`ollama serve`).
 
@@ -157,7 +155,6 @@ openclaw cron add \
 | What | Path |
 |------|------|
 | Memory files | `memory/` (diary, preferences, reflections) |
-| Session logs | `~/.openclaw/agents/main/sessions/*.jsonl` |
 | Soul output | `SOUL.md` |
 | State | `.neon-soul/state.json` |
 | Backups | `.neon-soul/backups/` |
@@ -192,5 +189,3 @@ NEON-SOUL processes personal memory files to synthesize identity. Your data stay
 **Stale results after model change:** Caches are keyed by model ID. Switching models automatically invalidates cached results. Use `--reset` if you want a clean start.
 
 ---
-
-Identity grounded in evidence, not assumptions. Patterns emerge from experience.

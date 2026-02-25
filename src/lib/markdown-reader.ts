@@ -3,7 +3,7 @@
  * Used by template and memory ingestion phases.
  */
 
-import matter from 'gray-matter';
+import yaml from 'js-yaml';
 
 export interface MarkdownSection {
   level: number;
@@ -20,11 +20,22 @@ export interface ParsedMarkdown {
 }
 
 /**
+ * Extract YAML frontmatter from markdown content.
+ * Replaces gray-matter with direct js-yaml usage for smaller bundle size.
+ */
+function parseFrontmatter(raw: string): { data: Record<string, unknown>; content: string } {
+  const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
+  if (!match) return { data: {}, content: raw };
+  const data = yaml.load(match[1] ?? '') as Record<string, unknown> ?? {};
+  return { data: typeof data === 'object' && data !== null ? data : {}, content: match[2] ?? '' };
+}
+
+/**
  * Parse markdown content with frontmatter and section extraction.
  */
 export function parseMarkdown(rawContent: string): ParsedMarkdown {
   // Parse frontmatter
-  const { data: frontmatter, content } = matter(rawContent);
+  const { data: frontmatter, content } = parseFrontmatter(rawContent);
 
   // Extract sections by heading
   const sections: MarkdownSection[] = [];
