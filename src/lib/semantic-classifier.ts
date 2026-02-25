@@ -40,21 +40,10 @@ export type { SectionType };
 
 // TR-4: Using shared requireLLM from llm.ts (removed local duplicate)
 
-/**
- * Sanitize user input to prevent prompt injection.
- * CR-2 FIX: Wrap user content in XML delimiters to separate from instructions.
- * I-1 FIX: Exported for use by other modules (tension-detector, signal-source-classifier, etc.)
- * I-2 FIX: Added truncation to prevent context overflow attacks.
- */
-export function sanitizeForPrompt(text: string): string {
-  // Escape any XML-like tags in the user content
-  let sanitized = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  // I-2 FIX: Truncate to prevent context overflow attacks
-  if (sanitized.length > 1000) {
-    sanitized = sanitized.slice(0, 1000) + '...';
-  }
-  return sanitized;
-}
+// CR-10 FIX: sanitizeForPrompt moved to centralized security module.
+// Import for internal use and re-export for backwards compatibility.
+import { sanitizeForPrompt } from './security.js';
+export { sanitizeForPrompt };
 
 /**
  * Maximum retry attempts for classification with corrective feedback.

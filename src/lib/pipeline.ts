@@ -21,8 +21,8 @@
 
 import { existsSync } from 'node:fs';
 // CR-2 FIX: Removed unused writeFile import - now using writeFileAtomic from persistence.ts
-import { dirname, resolve, normalize, sep } from 'node:path';
-import { homedir } from 'node:os';
+import { dirname } from 'node:path';
+import { validatePath } from './security.js';
 // TrajectoryTracker removed - single-pass architecture doesn't need iteration tracking
 import { collectSources as collectSourcesFromWorkspace, type SourceCollection as CollectedSources } from './source-collector.js';
 import { extractSignalsFromContent } from './signal-extractor.js';
@@ -245,6 +245,11 @@ export async function runPipeline(
     throw new LLMRequiredError('runPipeline');
   }
 
+  // CR-1 FIX: Validate both memoryPath and outputPath to prevent path traversal.
+  // This was missing for outputPath, allowing writes to arbitrary filesystem locations.
+  validatePath(options.memoryPath);
+  validatePath(options.outputPath);
+
   // Wrap LLM with telemetry tracking
   const telemetry = new LLMTelemetry(options.llm, {
     verbose: process.env['NEON_SOUL_LLM_TELEMETRY'] === '1',
@@ -382,29 +387,7 @@ function getStages(): PipelineStage[] {
   ];
 }
 
-/**
- * C-2/C-3 FIX: Validate path is within allowed root to prevent path traversal.
- * Only allows paths under user's home directory or /tmp for testing.
- *
- * C-2 FIX: Uses path separator check to prevent prefix attacks like
- * /tmp2/evil bypassing /tmp or /home/user_evil bypassing /home/user.
- */
-function validatePath(inputPath: string): string {
-  const normalized = normalize(resolve(inputPath));
-  const home = homedir();
-  const allowedRoots = [home, '/tmp', '/private/tmp']; // /private/tmp for macOS
-
-  // C-2 FIX: Require exact match OR path separator after root
-  // Prevents /tmp2/evil from matching /tmp, /home/user_evil from matching /home/user
-  const isAllowed = allowedRoots.some(root =>
-    normalized === root || normalized.startsWith(root + sep)
-  );
-  if (!isAllowed) {
-    throw new Error(`Path traversal blocked: ${inputPath} resolves outside allowed directories`);
-  }
-
-  return normalized;
-}
+// TR-1: validatePath imported from security.ts (centralized security module)
 
 /**
  * Extract workspace path from memory path.

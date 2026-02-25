@@ -413,7 +413,7 @@ This is intentionally different from our usual principles.
       expect(statusResult.success).toBe(true);
     }, 60000);
 
-    it('synthesis recovers from corrupted state', async () => {
+    it('synthesis fails on corrupted state and recovers with --reset', async () => {
       const memoryPath = join(TEST_WORKSPACE, 'memory');
       const outputPath = join(TEST_WORKSPACE, 'SOUL.md');
       const neonSoulDir = join(TEST_WORKSPACE, '.neon-soul');
@@ -424,23 +424,30 @@ This is intentionally different from our usual principles.
         { llm: mockLLM }
       );
 
-      // Corrupt all state files
-      const filesToCorrupt = ['state.json', 'signals.json', 'principles.json', 'axioms.json'];
-      for (const file of filesToCorrupt) {
-        const filePath = join(neonSoulDir, file);
-        if (existsSync(filePath)) {
-          writeFileSync(filePath, 'corrupted{{{not-json');
-        }
+      // Corrupt state.json specifically (CR-4: corrupted state now throws)
+      const statePath = join(neonSoulDir, 'state.json');
+      if (existsSync(statePath)) {
+        writeFileSync(statePath, 'corrupted{{{not-json');
       }
 
-      // Re-run synthesis - should work (regenerates from source)
-      const result = await runSynthesizeCommand(
+      // Re-run synthesis without --reset - should FAIL (CR-4 behavior)
+      const failResult = await runSynthesizeCommand(
         ['--memory-path', memoryPath, '--output-path', outputPath, '--force'],
         { llm: mockLLM }
       );
 
-      // Should succeed despite corrupted state
-      expect(result.success).toBe(true);
+      // CR-4 FIX: Corrupted state now throws error instead of silent reset
+      // This prevents silent loss of incremental processing history
+      expect(failResult.success).toBe(false);
+
+      // Now run with --reset to explicitly clear corrupted state
+      const resetResult = await runSynthesizeCommand(
+        ['--memory-path', memoryPath, '--output-path', outputPath, '--reset'],
+        { llm: mockLLM }
+      );
+
+      // Should succeed with explicit --reset
+      expect(resetResult.success).toBe(true);
 
       // Should have regenerated valid state
       const statusResult = await runStatusCommand(['--workspace', TEST_WORKSPACE]);

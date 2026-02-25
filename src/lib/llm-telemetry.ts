@@ -115,6 +115,9 @@ export interface TelemetrySummary {
  * Implements LLMProvider by delegating to a wrapped provider
  * while recording timing and status for every request.
  */
+// CR-7 FIX: Cap telemetry records to prevent unbounded memory growth in long runs.
+const MAX_TELEMETRY_RECORDS = 1000;
+
 export class LLMTelemetry implements LLMProvider {
   private readonly inner: LLMProvider;
   private readonly records: LLMRequestRecord[] = [];
@@ -212,6 +215,12 @@ export class LLMTelemetry implements LLMProvider {
     record.durationMs = Date.now() - record.startMs;
     record.success = success;
     if (extra) Object.assign(record, extra);
+
+    // CR-7 FIX: Cap records to prevent unbounded memory growth.
+    // Remove oldest records when cap is reached (ring buffer behavior).
+    if (this.records.length >= MAX_TELEMETRY_RECORDS) {
+      this.records.shift();
+    }
     this.records.push(record);
 
     if (this.verbose) {

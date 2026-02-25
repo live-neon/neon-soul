@@ -138,7 +138,11 @@ export function isStructuralNoise(text: string): boolean {
  * Default: 30 lines per batch.
  */
 const RAW_DETECTION_BATCH = parseInt(process.env['NEON_SOUL_DETECTION_BATCH_SIZE'] ?? '30', 10);
-const DETECTION_BATCH_SIZE = Number.isNaN(RAW_DETECTION_BATCH) || RAW_DETECTION_BATCH < 1 ? 30 : RAW_DETECTION_BATCH;
+// CR-3 FIX: Add upper bound (100) to prevent DoS via huge batch sizes.
+// Valid range: 1-100. Invalid values fall back to 30.
+const DETECTION_BATCH_SIZE = Number.isNaN(RAW_DETECTION_BATCH) || RAW_DETECTION_BATCH < 1
+  ? 30
+  : Math.min(RAW_DETECTION_BATCH, 100);
 
 /**
  * Batch identity signal detection using echo-back approach.
@@ -181,7 +185,36 @@ Return each identity signal on its own line, exactly as it appears above. If non
     }
 
     // Split response into individual signal lines
-    return text.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
+    const returnedSignals = text.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
+
+    // CR-2 FIX: Validate returned signals exist in original candidates.
+    // The LLM could fabricate signals via prompt injection, so we verify
+    // each returned signal actually exists in the original candidates.
+    // Use normalized comparison (lowercase, trimmed) for robustness.
+    const candidateTexts = new Set(
+      candidates.map((c) => c.text.toLowerCase().trim())
+    );
+
+    const validatedSignals = returnedSignals.filter((signal) => {
+      const normalizedSignal = signal.toLowerCase().trim();
+      // Check exact match first
+      if (candidateTexts.has(normalizedSignal)) {
+        return true;
+      }
+      // Check if any candidate contains this signal (handles partial extraction)
+      for (const candidateText of candidateTexts) {
+        if (candidateText.includes(normalizedSignal) || normalizedSignal.includes(candidateText)) {
+          return true;
+        }
+      }
+      // Signal not found in candidates — likely fabricated
+      logger.warn('[signal-extractor] CR-2: Rejected fabricated signal not in candidates', {
+        signal: signal.slice(0, 80),
+      });
+      return false;
+    });
+
+    return validatedSignals;
   } catch (error) {
     // On error, return empty (conservative: don't false-positive)
     logger.warn('[signal-extractor] Batch detection failed, skipping batch', {
@@ -319,7 +352,11 @@ Respond with only: self, curated, or external`;
  * Invalid values (0, negative, NaN) fall back to default.
  */
 const RAW_BATCH_SIZE = parseInt(process.env['NEON_SOUL_LLM_CONCURRENCY'] ?? '10', 10);
-const BATCH_SIZE = Number.isNaN(RAW_BATCH_SIZE) || RAW_BATCH_SIZE < 1 ? 10 : RAW_BATCH_SIZE;
+// CR-3 FIX: Add upper bound (20) to prevent DoS via hundreds of concurrent LLM calls.
+// Valid range: 1-20. Invalid values fall back to 10.
+const BATCH_SIZE = Number.isNaN(RAW_BATCH_SIZE) || RAW_BATCH_SIZE < 1
+  ? 10
+  : Math.min(RAW_BATCH_SIZE, 20);
 
 /**
  * Extract signals from markdown content using LLM-based semantic detection.
@@ -404,6 +441,12 @@ export async function extractSignalsFromContent(
   // Phase 2: Batch identity signal detection (echo-back approach)
   // Sends batches of ~30 candidates, LLM returns only the identity signals.
   // Returned text IS the signal — no matching back to originals.
+  //
+  // CR-5 TRADEOFF: This approach loses line number traceability (lineNum: 0).
+  // The ~40x LLM reduction is worth the tradeoff for most use cases.
+  // If auditability becomes critical, consider:
+  //   - Fuzzy search to re-associate signals with original lines
+  //   - NEON_SOUL_LINE_TRACE=1 env var to enable slower line-by-line mode
   const detectedSignalTexts: string[] = [];
 
   for (let i = 0; i < filteredCandidates.length; i += DETECTION_BATCH_SIZE) {
@@ -421,9 +464,11 @@ export async function extractSignalsFromContent(
     const batch = detectedSignalTexts.slice(i, i + BATCH_SIZE);
     const batchResults = await Promise.all(
       batch.map(async (signalText) => {
+        // CR-5: lineNum is 0 because echo-back detection doesn't track source lines.
+        // This is a documented tradeoff for ~40x LLM reduction. See Phase 2 comment above.
         const signalSource = createSignalSource(
           source.file,
-          0, // No line number — echo-back doesn't track source lines
+          0, // Echo-back tradeoff: no line tracking
           signalText.slice(0, 100)
         );
 

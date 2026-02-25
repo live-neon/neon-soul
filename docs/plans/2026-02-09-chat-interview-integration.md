@@ -1,8 +1,10 @@
 ---
 created: 2026-02-09
-updated: 2026-02-09
+updated: 2026-02-25
 type: implementation-plan
-status: Ready
+status: Superseded
+superseded_reason: Interview modules removed in 2026-02-25 rewrite (passive-only extraction)
+superseded_by: docs/architecture/interview-module-removal.md
 language: typescript
 code_examples: forbidden
 review_principles: |
@@ -15,6 +17,8 @@ supersedes: 2026-02-09-interview-cli-integration.md (Part 1)
 ---
 
 # Plan: Chat-Based Interview Integration
+
+> **⚠️ SUPERSEDED**: This plan is obsolete. The interview modules (`interview.ts`, `question-bank.ts`) were removed in the 2026-02-25 rewrite in favor of passive-only signal extraction. See [Interview Module Removal](../architecture/interview-module-removal.md) for rationale.
 
 ## Problem Statement
 

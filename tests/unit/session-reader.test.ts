@@ -347,7 +347,8 @@ describe('Session Reader', () => {
     });
 
     it('returns empty array for non-existent directory', async () => {
-      const sessions = await readSessionFiles('/nonexistent/dir');
+      // CR-8: Path must be within allowed roots (home, /tmp, /private/tmp, /var/folders)
+      const sessions = await readSessionFiles('/tmp/nonexistent-session-dir-12345');
       expect(sessions).toEqual([]);
     });
 
