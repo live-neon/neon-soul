@@ -15,9 +15,10 @@
  *   const content = sessionToMemoryContent(sessions[0]);
  */
 
-import { readdir, readFile } from 'node:fs/promises';
+import { readdir, readFile, stat } from 'node:fs/promises';
 import { join, extname } from 'node:path';
 import { existsSync } from 'node:fs';
+import { validatePath } from './security.js';
 
 /**
  * A single message extracted from a session file.
@@ -67,12 +68,9 @@ interface SessionEntry {
  */
 export const DEFAULT_SESSIONS_PATH = '~/.openclaw/agents/main/sessions';
 
-/**
- * Expand ~ to home directory.
- */
-function expandPath(path: string): string {
-  return path.replace(/^~/, process.env['HOME'] || '');
-}
+// CR-11 FIX: Removed duplicate expandPath and validateSessionsPath functions.
+// Now using centralized validatePath from security.ts which properly handles
+// both ~ expansion and path traversal validation.
 
 /**
  * Read and parse all session files from a directory.
@@ -84,7 +82,8 @@ function expandPath(path: string): string {
 export async function readSessionFiles(
   sessionsDir: string
 ): Promise<SessionFile[]> {
-  const dir = expandPath(sessionsDir);
+  // CR-8/CR-11 FIX: Validate path using centralized security module.
+  const dir = validatePath(sessionsDir);
 
   if (!existsSync(dir)) {
     return [];
@@ -177,7 +176,8 @@ export async function parseSessionFile(
       id: entry.id ?? '',
       role: msg.role as 'user' | 'assistant',
       text,
-      timestamp: entry.timestamp,
+      // CR-12 FIX: Only include timestamp if it exists (exactOptionalPropertyTypes compatibility)
+      ...(entry.timestamp && { timestamp: entry.timestamp }),
     });
   }
 
@@ -186,7 +186,16 @@ export async function parseSessionFile(
     sessionId = filePath.split('/').pop()?.replace('.jsonl', '') ?? 'unknown';
   }
   if (!sessionTimestamp) {
-    sessionTimestamp = new Date().toISOString();
+    // CR-12 FIX: Use file mtime as fallback instead of current time.
+    // Using current time caused reprocessing jitter when the same file
+    // was read multiple times with different timestamps.
+    try {
+      const fileStat = await stat(filePath);
+      sessionTimestamp = fileStat.mtime.toISOString();
+    } catch {
+      // If stat fails, fall back to current time as last resort
+      sessionTimestamp = new Date().toISOString();
+    }
   }
 
   return {
