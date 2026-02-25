@@ -654,9 +654,21 @@ async function extractSignals(
   // Adaptive time budget — estimates downstream LLM cost and stops extraction
   // when remaining time can't safely cover synthesis + generation.
   const timeBudgetMs = (context.options.timeBudgetMinutes ?? 20) * 60 * 1000;
-  const DOWNSTREAM_CALLS_PER_SIGNAL = 2.5;  // generalize + match + compress (amortized)
-  const GENERATION_OVERHEAD_CALLS = 5;       // soul generator + prose expansion
-  const SAFETY_FACTOR = 0.7;                 // reserve 30% margin
+  const DOWNSTREAM_CALLS_PER_NEW_SIGNAL = 2.5;     // generalize + match + compress (amortized)
+  const DOWNSTREAM_CALLS_PER_CACHED_SIGNAL = 0.5;  // compression only (generalize + match skipped via cache)
+  const GENERATION_OVERHEAD_CALLS = 5;              // soul generator + prose expansion
+  const SAFETY_FACTOR = 0.7;                        // reserve 30% margin
+
+  // Determine how many existing signals have cached synthesis results
+  // Cached signals skip generalization + matching, so their downstream cost is much lower
+  let cachedSignalCount = 0;
+  if (!incremental.isReset) {
+    const state = loadState(getWorkspacePath(context.options.memoryPath));
+    const cache = state.reflectionCache;
+    if (cache && cache.processedSignalIds.length > 0) {
+      cachedSignalCount = cache.processedSignalIds.length;
+    }
+  }
   const preSessionRequests = context.telemetry?.getSummary().totalRequests ?? 0;
   let sessionsExtracted = 0;
   let budgetExhausted = false;
@@ -675,7 +687,10 @@ async function extractSignals(
           const remaining = timeBudgetMs - elapsed;
           const avgCallMs = summary.avgDurationMs;
 
-          const downstream = newSignals.length * DOWNSTREAM_CALLS_PER_SIGNAL * avgCallMs;
+          // Split downstream estimate: cached signals cost ~0.5 calls, new signals cost 2.5
+          const cachedDownstream = cachedSignalCount * DOWNSTREAM_CALLS_PER_CACHED_SIGNAL * avgCallMs;
+          const newDownstream = newSignals.length * DOWNSTREAM_CALLS_PER_NEW_SIGNAL * avgCallMs;
+          const downstream = cachedDownstream + newDownstream;
           const sessionCalls = (summary.totalRequests - preSessionRequests) / sessionsExtracted;
           const nextSession = sessionCalls * avgCallMs;
           const genOverhead = GENERATION_OVERHEAD_CALLS * avgCallMs;
@@ -684,10 +699,11 @@ async function extractSignals(
 
           logger.info(
             `Budget check [${sessionsExtracted}/${sessionsToProcess.length}]: ` +
-            `${newSignals.length} signals, ${(elapsed / 1000).toFixed(0)}s elapsed, ` +
+            `${newSignals.length} new + ${cachedSignalCount} cached signals, ${(elapsed / 1000).toFixed(0)}s elapsed, ` +
             `${(remaining / 1000).toFixed(0)}s remaining | ` +
             `est. work: ${(estimatedWork / 1000).toFixed(0)}s ` +
-            `(downstream=${(downstream / 1000).toFixed(0)}s + next=${(nextSession / 1000).toFixed(0)}s + gen=${(genOverhead / 1000).toFixed(0)}s) ` +
+            `(downstream=${(downstream / 1000).toFixed(0)}s [${(newDownstream / 1000).toFixed(0)}s new + ${(cachedDownstream / 1000).toFixed(0)}s cached] ` +
+            `+ next=${(nextSession / 1000).toFixed(0)}s + gen=${(genOverhead / 1000).toFixed(0)}s) ` +
             `vs budget: ${(budgetCeiling / 1000).toFixed(0)}s`
           );
 
@@ -731,7 +747,9 @@ async function extractSignals(
           const remaining = timeBudgetMs - elapsed;
           const avgCallMs = summary.avgDurationMs;
 
-          const downstream = newSignals.length * DOWNSTREAM_CALLS_PER_SIGNAL * avgCallMs;
+          const cachedDownstream = cachedSignalCount * DOWNSTREAM_CALLS_PER_CACHED_SIGNAL * avgCallMs;
+          const newDownstream = newSignals.length * DOWNSTREAM_CALLS_PER_NEW_SIGNAL * avgCallMs;
+          const downstream = cachedDownstream + newDownstream;
           const sessionCalls = (summary.totalRequests - preSessionRequests) / sessionsExtracted;
           const nextSession = sessionCalls * avgCallMs;
           const genOverhead = GENERATION_OVERHEAD_CALLS * avgCallMs;
@@ -741,7 +759,7 @@ async function extractSignals(
           const changedIdx = sessionsExtracted - sessionsToProcess.length;
           logger.info(
             `Budget check [changed ${Math.max(0, changedIdx)}/${incremental.changedSessions.length}]: ` +
-            `${newSignals.length} signals, ${(elapsed / 1000).toFixed(0)}s elapsed, ` +
+            `${newSignals.length} new + ${cachedSignalCount} cached signals, ${(elapsed / 1000).toFixed(0)}s elapsed, ` +
             `${(remaining / 1000).toFixed(0)}s remaining | ` +
             `est. work: ${(estimatedWork / 1000).toFixed(0)}s vs budget: ${(budgetCeiling / 1000).toFixed(0)}s`
           );

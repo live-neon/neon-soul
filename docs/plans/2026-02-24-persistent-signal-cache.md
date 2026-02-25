@@ -2,7 +2,7 @@
 
 **Date**: 2026-02-24
 **Status**: Complete
-**Impact**: 69% reduction in LLM time on incremental runs (1594s → 496s), 39% fewer LLM requests (97 → 59)
+**Impact**: Up to 68% reduction in LLM time and 67% fewer requests on fully-cached runs (82 → 27 requests, 747s → 238s)
 
 ---
 
@@ -118,6 +118,42 @@ Reset mode: clearing all synthesis data and caches
 
 The remaining 44 synthesis requests come from: 4 new generalizations, 4 new matchings, 8 axiom notations, and 28 tension pair checks. Compression runs on the full principle set every time (not cacheable per-signal).
 
+### Run 3: Fully cached (no new sources)
+
+After the cache-aware adaptive budget update, a run with no new sources shows the irreducible cost floor — the minimum LLM work when everything is cached.
+
+```
+No new sources detected
+Signal merge: 25 existing → 25 after stale removal + 0 new = 25 total
+[generalizer] Loaded 25 cache entries from disk
+[synthesis] Rehydrated store: 12 principles, 25 cached signals, 0 new to process
+[synthesis] Generalized 25 signals in 0ms
+[synthesis] Added 0 signals to principle store (25 skipped, cache-rehydrated)
+[synthesis] 12 principles formed
+```
+
+| Metric | Value |
+|--------|-------|
+| Signals | 25 (25 cached + 0 new) |
+| Principles | 12 |
+| Axioms | 6 |
+| Extract requests | 0 |
+| Synthesis requests | 21 (compression + tensions only) |
+| Prose + generation requests | 6 |
+| Total LLM requests | 27 (0 failures) |
+| Total LLM time | 238s |
+
+### Full Progression
+
+| Scenario | Requests | LLM Time | vs Reset |
+|----------|----------|----------|----------|
+| Reset (no cache) | 82 | 747s | baseline |
+| Incremental (3 new signals) | 38 | 330s | **54% fewer requests, 56% faster** |
+| Incremental (2 new signals) | 35 | 314s | **57% fewer requests, 58% faster** |
+| Fully cached (0 new) | 27 | 238s | **67% fewer requests, 68% faster** |
+
+The irreducible floor of ~27 requests comes from compression (6 axiom notations + 15 tension pair checks) + prose expansion (5) + soul generation (1). These phases operate on the full principle/axiom set and run every time regardless of cache state.
+
 ---
 
 ## Changes
@@ -152,6 +188,28 @@ Extended `ReflectiveLoopConfig` with `cachedPrinciples` and `cachedProcessedSign
 
 `reflectiveSynthesis` stage: loads generalization cache from disk, validates principle store cache (model + threshold match, no signal removal), passes cache to `runReflectiveLoop()`, saves generalization cache after synthesis. `validateOutput` stage: persists `reflectionCache` in state.json. `collectSources` stage: clears caches on `--reset`.
 
+### 6. Cache-aware adaptive budget
+
+**File**: `src/lib/pipeline.ts`
+
+The adaptive time budget previously used a flat `DOWNSTREAM_CALLS_PER_SIGNAL = 2.5` for all signals. With caching, most existing signals skip generalization + matching entirely, so their downstream cost is much lower.
+
+Split into two constants:
+- `DOWNSTREAM_CALLS_PER_NEW_SIGNAL = 2.5` — generalize + match + compress (amortized)
+- `DOWNSTREAM_CALLS_PER_CACHED_SIGNAL = 0.5` — compression only (generalize + match skipped via cache)
+
+Before the extraction loop, the pipeline loads `reflectionCache.processedSignalIds` from state to determine how many signals are cached. Each budget check then computes:
+
+```
+cachedDownstream = cachedSignalCount × 0.5 × avgCallMs
+newDownstream    = newSignals.length  × 2.5 × avgCallMs
+downstream       = cachedDownstream + newDownstream
+```
+
+As new signals are extracted each iteration, `newSignals.length` grows and `newDownstream` increases, tightening the budget dynamically. The cached baseline stays fixed. On reset runs, `cachedSignalCount` is 0 (cache skipped), so all signals use the full 2.5 rate.
+
+**Effect**: With 21 cached + 4 new signals, downstream estimate drops from `25 × 2.5 = 62.5` calls to `21 × 0.5 + 4 × 2.5 = 20.5` calls — freeing budget headroom for more session extraction.
+
 ---
 
 ## Files Modified
@@ -162,7 +220,7 @@ Extended `ReflectiveLoopConfig` with `cachedPrinciples` and `cachedProcessedSign
 | `src/lib/state.ts` | +10/-2 | `reflectionCache` field + loadState preservation |
 | `src/lib/principle-store.ts` | +25/-2 | Initial state parameter + getProcessedSignalIds |
 | `src/lib/reflection-loop.ts` | +20/-5 | Cache config + store rehydration + result IDs |
-| `src/lib/pipeline.ts` | +45/-5 | Cache load/save/invalidation orchestration |
+| `src/lib/pipeline.ts` | +60/-10 | Cache load/save/invalidation orchestration + cache-aware budget |
 
 ---
 
@@ -170,4 +228,3 @@ Extended `ReflectiveLoopConfig` with `cachedPrinciples` and `cachedProcessedSign
 
 - Adaptive time budget (2026-02-24-adaptive-time-budget.md) — controls how many sessions are extracted per run
 - State tracking fix (commit 236ec90) — ensures budget-skipped sessions are picked up on next run
-- The `DOWNSTREAM_CALLS_PER_SIGNAL` constant (2.5) in the budget equation could be reduced for cached signals, allowing more sessions to be processed within the same time budget
