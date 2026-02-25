@@ -468,8 +468,12 @@ clawhub publish skills/consciousness-soul-identity \
 | 0.1.10 | 2026-02-12 | Fix "No external code execution" wording, add model integrity verification |
 | 0.2.0 | 2026-02-12 | **BREAKING**: Remove @xenova/transformers, LLM-based similarity (requires active LLM connection) |
 | 0.2.1 | 2026-02-12 | PBD stages 13-17: cycle management, anti-echo-chamber, TOCTOU fix, Zod validation |
+| 0.4.0 | 2026-02-25 | Major rewrite: echo-back batch detection, security hardening, centrality exemption, telemetry ring buffer |
+| 0.4.1 | 2026-02-25 | Security scan remediation: replace "Override" wording, declare runtime requirements |
 
 **Version History** (consciousness-soul-identity):
 | Version | Date | Notes |
 |---------|------|-------|
 | 0.2.1 | 2026-02-12 | Initial release - agent-voice skill targeting consciousness/identity keywords |
+| 0.4.0 | 2026-02-25 | Sync with neon-soul major rewrite |
+| 0.4.1 | 2026-02-25 | Security scan remediation: replace "Override" wording, declare runtime requirements |
