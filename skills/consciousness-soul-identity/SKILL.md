@@ -28,7 +28,6 @@ tags:
   - introspection
   - self-awareness
   - self-learning
-  - autonomous
   - personality
   - ai-agent
 ---
@@ -127,24 +126,9 @@ Quick answer to "where did this come from?"
 
 ---
 
-## How It Works
-
-Identity emerges through a pipeline that mirrors how self-awareness develops:
-
-1. **Signal extraction** — Raw insights pulled from memory files, each weighted by importance and stance
-2. **Generalization** — The LLM abstracts signals into principles while preserving the original voice
-3. **Pattern matching** — Semantically similar signals cluster into emerging principles
-4. **Axiom emergence** — Principles that pass the evidence threshold (N>=3) become core identity elements
-5. **Tension detection** — Conflicting axioms are surfaced, not suppressed. Tensions are real complexity in identity.
-6. **Grounding** — Anti-echo-chamber protection: axioms require diverse evidence sources and external validation
-
-Nothing becomes part of the soul document without evidence from multiple directions.
-
----
-
 ## Scheduled Synthesis
 
-Soul synthesis works best when run regularly in the background. Set up cron to run synthesis automatically — incremental processing and multi-layer caching mean it only does real work when new memory or sessions exist. Cached runs complete in seconds.
+Set up cron to run synthesis on a schedule. Incremental processing and multi-layer caching mean it only does real work when new memory or sessions exist — cached runs complete in seconds.
 
 **Recommended:** Every 60 minutes, isolated session, 30-minute timeout.
 
@@ -161,7 +145,7 @@ openclaw cron add \
 **Or run manually:** `/neon-soul synthesize`
 
 **Why cron over heartbeat:**
-- Reflection is a standalone act — no conversational context needed
+- Synthesis is a standalone task — no conversational context needed
 - Runs in isolation from the main session
 - Incremental by default — cached runs complete in seconds when nothing changed
 - Adaptive time budget prevents runaway execution
